@@ -12,7 +12,7 @@ export interface Task {
   requestedByName: string;
   requestedDate: string;
   status: "pending" | "assigned" | "completed" | "cancelled";
-  helperAssigned?: string;
+  helperAssigned: string;
 }
 
 export interface KeywordOption {
@@ -23,23 +23,4 @@ export interface KeywordOption {
 export interface City {
   name: string;
   distance?: number;
-}
-
-export interface UserProfile {
-  id: string;
-  name: string;
-  age?: number;
-  type: UserType;
-  location?: string;
-  email?: string;
-  coordinates?: {
-    latitude: number;
-    longitude: number;
-  };
-}
-
-export interface HelperPoints {
-  helper_id: string;
-  points: number;
-  updated_at: string;
 }

@@ -1,16 +1,14 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import TaskCard from "./TaskCard";
-import { Task, UserType } from "@/types";
+import { Task } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MapPin, ShoppingCart, ChefHat, Flower, Laptop, Users } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
 
 interface TaskListProps {
   tasks: Task[];
-  userType: UserType;
+  userType: "elderly" | "helper";
   onTaskUpdate?: (taskId: string, status: string) => void;
 }
 
@@ -18,7 +16,6 @@ const TaskList = ({ tasks, userType, onTaskUpdate }: TaskListProps) => {
   const [filter, setFilter] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("available");
   const [sortByProximity, setSortByProximity] = useState<boolean>(false);
-  const { toast } = useToast();
   
   // Si aucune tâche n'est disponible, afficher un message
   if (!tasks || tasks.length === 0) {
@@ -31,9 +28,8 @@ const TaskList = ({ tasks, userType, onTaskUpdate }: TaskListProps) => {
     );
   }
   
-  // Get user ID from Supabase auth
-  const user = supabase.auth.getUser();
-  const userId = user?.data?.user?.id || "";
+  // Filter tasks based on user type
+  const userId = localStorage.getItem("userId");
   
   // Pour les seniors: voir uniquement leurs propres tâches
   // Pour les jeunes aidants: voir toutes les tâches créées par les seniors
