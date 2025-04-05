@@ -3,21 +3,23 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Menu } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 interface HeaderProps {
   userType?: "elderly" | "helper";
 }
 
-export const Header = ({ userType }: HeaderProps) => {
+export const Header = ({ userType: propsUserType }: HeaderProps) => {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { user, signOut } = useAuth();
   
-  const isLoggedIn = !!userType || localStorage.getItem("isLoggedIn") === "true";
+  // Utiliser le type d'utilisateur des props si disponible, sinon utiliser celui de l'utilisateur connecté
+  const userType = propsUserType || (user?.type as "elderly" | "helper" | undefined);
+  const isLoggedIn = !!user;
   
-  const handleLogout = () => {
-    localStorage.removeItem("userType");
-    localStorage.removeItem("userEmail");
-    localStorage.removeItem("isLoggedIn");
+  const handleLogout = async () => {
+    await signOut();
     navigate("/login");
   };
   

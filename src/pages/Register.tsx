@@ -6,7 +6,7 @@ import Footer from "@/components/Footer";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { UserType } from "@/types";
 import { z } from "zod";
 import {
@@ -19,7 +19,6 @@ import {
 } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { v4 as uuidv4 } from 'uuid';
 
 const registerSchema = z.object({
   name: z.string().min(2, { message: "Le nom est trop court" }),
@@ -34,8 +33,9 @@ type RegisterFormValues = z.infer<typeof registerSchema>;
 
 const Register = () => {
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const { signUp } = useAuth();
   const [userType, setUserType] = useState<UserType>("elderly");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
@@ -47,40 +47,22 @@ const Register = () => {
     },
   });
 
-  const onSubmit = (data: RegisterFormValues) => {
-    console.log("Register data:", data);
-    
-    // Enregistrer l'utilisateur dans le localStorage
-    const userId = uuidv4();
-    const existingUsers = JSON.parse(localStorage.getItem("users") || "[]");
-    const newUser = {
-      id: userId,
-      name: data.name,
-      email: data.email,
-      age: data.age,
-      type: userType
-    };
-    
-    localStorage.setItem("users", JSON.stringify([...existingUsers, newUser]));
-    
-    // Stocker également les informations de session de l'utilisateur
-    localStorage.setItem("userId", userId);
-    localStorage.setItem("userName", data.name);
-    localStorage.setItem("userEmail", data.email);
-    localStorage.setItem("userType", userType);
-    localStorage.setItem("isLoggedIn", "true");
-    
-    if (userType === "helper") {
-      // Initialiser les points pour les aidants
-      localStorage.setItem("helperPoints", "0");
+  const onSubmit = async (data: RegisterFormValues) => {
+    try {
+      setIsSubmitting(true);
+      await signUp(
+        data.name, 
+        data.email, 
+        data.password, 
+        Number(data.age), 
+        userType
+      );
+      navigate("/dashboard", { state: { userType } });
+    } catch (error) {
+      console.error("Erreur d'inscription:", error);
+    } finally {
+      setIsSubmitting(false);
     }
-    
-    toast({
-      title: "Inscription réussie",
-      description: "Bienvenue sur Gener-Action !",
-    });
-    
-    navigate("/dashboard", { state: { userType } });
   };
   
   return (
@@ -203,8 +185,9 @@ const Register = () => {
                   <Button 
                     type="submit" 
                     className={`w-full bg-app-blue hover:bg-app-blue/90 ${userType === "elderly" ? "text-lg py-6" : ""}`}
+                    disabled={isSubmitting}
                   >
-                    S'inscrire
+                    {isSubmitting ? "Inscription..." : "S'inscrire"}
                   </Button>
                   
                   <div className="text-center">
