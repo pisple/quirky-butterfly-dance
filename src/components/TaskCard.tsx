@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,6 +6,7 @@ import { Task } from "@/types";
 import { Clock, ShoppingCart, ChefHat, Flower, Laptop, Users, MapPin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import MapDisplay from "./MapDisplay";
+import { supabase } from "@/integrations/supabase/client";
 
 interface TaskCardProps {
   task: Task;
@@ -17,50 +17,171 @@ interface TaskCardProps {
 const TaskCard = ({ task, userType, onTaskUpdate }: TaskCardProps) => {
   const { toast } = useToast();
   const [showMap, setShowMap] = useState(false);
+  const [updating, setUpdating] = useState(false);
   
-  const handleAccept = () => {
+  const handleAccept = async () => {
     if (onTaskUpdate) {
-      onTaskUpdate(task.id, "assigned");
+      setUpdating(true);
       
-      const userEmail = localStorage.getItem("userEmail") || "";
-      
-      toast({
-        title: "Tâche acceptée",
-        description: "Vous avez accepté cette tâche. La personne sénior sera notifiée.",
-      });
-    }
-  };
-  
-  const handleCancel = () => {
-    if (onTaskUpdate) {
-      onTaskUpdate(task.id, "cancelled");
-      
-      toast({
-        title: "Tâche annulée",
-        description: "Votre demande a été annulée.",
-      });
-    }
-  };
-  
-  const handleComplete = () => {
-    if (onTaskUpdate) {
-      onTaskUpdate(task.id, "completed");
-      
-      if (userType === "helper") {
-        const currentPoints = parseInt(localStorage.getItem("helperPoints") || "0");
-        const newPoints = currentPoints + 50;
-        localStorage.setItem("helperPoints", newPoints.toString());
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
         
+        if (!user) {
+          toast({
+            title: "Erreur",
+            description: "Vous devez être connecté pour accepter une tâche.",
+            variant: "destructive"
+          });
+          setUpdating(false);
+          return;
+        }
+        
+        const { error } = await supabase
+          .from('tasks')
+          .update({ 
+            status: 'assigned', 
+            helper_assigned: user.id 
+          })
+          .eq('id', task.id);
+          
+        if (error) {
+          console.error("Error updating task:", error);
+          toast({
+            title: "Erreur",
+            description: "Une erreur s'est produite lors de l'acceptation de la tâche.",
+            variant: "destructive"
+          });
+        } else {
+          onTaskUpdate(task.id, "assigned");
+          
+          toast({
+            title: "Tâche acceptée",
+            description: "Vous avez accepté cette tâche. La personne sénior sera notifiée.",
+          });
+        }
+      } catch (error) {
+        console.error("Error accepting task:", error);
         toast({
-          title: "Tâche terminée",
-          description: "Merci pour votre aide ! Vous avez gagné 50 points.",
-        });
-      } else {
-        toast({
-          title: "Tâche terminée",
-          description: "Merci pour votre aide !",
+          title: "Erreur",
+          description: "Une erreur s'est produite lors de l'acceptation de la tâche.",
+          variant: "destructive"
         });
       }
+      
+      setUpdating(false);
+    }
+  };
+  
+  const handleCancel = async () => {
+    if (onTaskUpdate) {
+      setUpdating(true);
+      
+      try {
+        const { error } = await supabase
+          .from('tasks')
+          .update({ status: 'cancelled' })
+          .eq('id', task.id);
+          
+        if (error) {
+          console.error("Error cancelling task:", error);
+          toast({
+            title: "Erreur",
+            description: "Une erreur s'est produite lors de l'annulation de la tâche.",
+            variant: "destructive"
+          });
+        } else {
+          onTaskUpdate(task.id, "cancelled");
+          
+          toast({
+            title: "Tâche annulée",
+            description: "Votre demande a été annulée.",
+          });
+        }
+      } catch (error) {
+        console.error("Error cancelling task:", error);
+        toast({
+          title: "Erreur",
+          description: "Une erreur s'est produite lors de l'annulation de la tâche.",
+          variant: "destructive"
+        });
+      }
+      
+      setUpdating(false);
+    }
+  };
+  
+  const handleComplete = async () => {
+    if (onTaskUpdate) {
+      setUpdating(true);
+      
+      try {
+        const { error: taskError } = await supabase
+          .from('tasks')
+          .update({ status: 'completed' })
+          .eq('id', task.id);
+          
+        if (taskError) {
+          console.error("Error completing task:", taskError);
+          toast({
+            title: "Erreur",
+            description: "Une erreur s'est produite lors de la complétion de la tâche.",
+            variant: "destructive"
+          });
+          setUpdating(false);
+          return;
+        }
+        
+        if (userType === "helper") {
+          const { data: { user } } = await supabase.auth.getUser();
+          
+          if (user) {
+            const { data: pointsData, error: pointsGetError } = await supabase
+              .from('helper_points')
+              .select('points')
+              .eq('helper_id', user.id)
+              .single();
+              
+            if (pointsGetError) {
+              console.error("Error getting helper points:", pointsGetError);
+            } else {
+              const currentPoints = pointsData?.points || 0;
+              const newPoints = currentPoints + 50;
+              
+              const { error: pointsUpdateError } = await supabase
+                .from('helper_points')
+                .update({ points: newPoints })
+                .eq('helper_id', user.id);
+                
+              if (pointsUpdateError) {
+                console.error("Error updating helper points:", pointsUpdateError);
+              }
+            }
+          }
+        }
+        
+        onTaskUpdate(task.id, "completed");
+        
+        if (userType === "helper") {
+          toast({
+            title: "Tâche terminée",
+            description: "Merci pour votre aide ! Vous avez gagné 50 points.",
+          });
+        } else {
+          toast({
+            title: "Tâche terminée",
+            description: "Merci pour votre aide !",
+          });
+        }
+      } catch (error) {
+        console.error("Error completing task:", error);
+        toast({
+          title: "Erreur",
+          description: "Une erreur s'est produite lors de la complétion de la tâche.",
+          variant: "destructive"
+        });
+      }
+      
+      setUpdating(false);
     }
   };
   
