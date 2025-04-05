@@ -1,299 +1,229 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { z } from "zod";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { UserType } from "@/types";
+import { z } from "zod";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { v4 as uuidv4 } from 'uuid';
 
-// Base schema for all users
-const baseSchema = {
-  name: z.string().min(2, { message: "Le nom doit contenir au moins 2 caractères" }),
-  email: z.string().email({ message: "Adresse email invalide" }),
-  password: z.string().min(8, { message: "Le mot de passe doit contenir au moins 8 caractères" }),
-  userType: z.enum(["elderly", "helper"], { 
-    required_error: "Veuillez sélectionner un type d'utilisateur" 
+const registerSchema = z.object({
+  name: z.string().min(2, { message: "Le nom est trop court" }),
+  email: z.string().email({ message: "Email invalide" }),
+  password: z.string().min(6, { message: "Mot de passe trop court" }),
+  age: z.string().refine((val) => !isNaN(Number(val)) && Number(val) >= 18, {
+    message: "Vous devez avoir au moins 18 ans",
   }),
-};
-
-// Helper schema adds age verification
-const helperSchema = z.object({
-  ...baseSchema,
-  age: z.coerce.number().min(18, { message: "Vous devez avoir au moins 18 ans" }),
-  phone: z.string().optional(),
-  location: z.string().optional(),
 });
 
-// Elderly schema is simpler (no age verification)
-const elderlySchema = z.object({
-  ...baseSchema,
-  age: z.coerce.number().optional(),
-  phone: z.string().optional(),
-  location: z.string().optional(),
-});
+type RegisterFormValues = z.infer<typeof registerSchema>;
 
 const Register = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
-  const [userType, setUserType] = useState<"elderly" | "helper" | undefined>();
-  
-  // Create form with dynamic schema based on user type
-  const form = useForm<z.infer<typeof helperSchema>>({
-    resolver: zodResolver(userType === "elderly" ? elderlySchema : helperSchema),
+  const [userType, setUserType] = useState<UserType>("elderly");
+
+  const form = useForm<RegisterFormValues>({
+    resolver: zodResolver(registerSchema),
     defaultValues: {
       name: "",
       email: "",
       password: "",
-      userType: undefined,
-      phone: "",
-      location: "",
+      age: "",
     },
   });
 
-  // Update the schema when user type changes
-  useEffect(() => {
-    if (userType) {
-      form.setValue("userType", userType);
+  const onSubmit = (data: RegisterFormValues) => {
+    console.log("Register data:", data);
+    
+    // Enregistrer l'utilisateur dans le localStorage
+    const userId = uuidv4();
+    const existingUsers = JSON.parse(localStorage.getItem("users") || "[]");
+    const newUser = {
+      id: userId,
+      name: data.name,
+      email: data.email,
+      age: data.age,
+      type: userType
+    };
+    
+    localStorage.setItem("users", JSON.stringify([...existingUsers, newUser]));
+    
+    // Stocker également les informations de session de l'utilisateur
+    localStorage.setItem("userId", userId);
+    localStorage.setItem("userName", data.name);
+    localStorage.setItem("userEmail", data.email);
+    localStorage.setItem("userType", userType);
+    localStorage.setItem("isLoggedIn", "true");
+    
+    if (userType === "helper") {
+      // Initialiser les points pour les aidants
+      localStorage.setItem("helperPoints", "0");
     }
-  }, [userType, form]);
-
-  const onSubmit = (data: z.infer<typeof helperSchema>) => {
-    setIsLoading(true);
     
-    // Dans une vraie application, vous enverriez ces données à une API
-    console.log("Données d'inscription:", data);
+    toast({
+      title: "Inscription réussie",
+      description: "Bienvenue sur Gener-Action !",
+    });
     
-    // Simuler un délai réseau
-    setTimeout(() => {
-      // Stocker les informations utilisateur dans localStorage
-      localStorage.setItem("userType", data.userType);
-      localStorage.setItem("userEmail", data.email);
-      localStorage.setItem("userName", data.name);
-      localStorage.setItem("isLoggedIn", "true");
-      
-      toast({
-        title: "Inscription réussie !",
-        description: "Votre compte a été créé avec succès.",
-      });
-      
-      setIsLoading(false);
-      navigate("/dashboard", { state: { userType: data.userType } });
-    }, 1000);
+    navigate("/dashboard", { state: { userType } });
   };
-
+  
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className={`flex flex-col min-h-screen ${userType === "elderly" ? "elderly-mode" : ""}`}>
       <Header />
       
-      <main className="flex-grow container mx-auto px-4 py-12">
-        <Card className="max-w-2xl mx-auto">
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold text-center">Créer un compte</CardTitle>
-            <CardDescription className="text-center">
-              Inscrivez-vous pour commencer à utiliser Gener-Action
-            </CardDescription>
-          </CardHeader>
-          
-          <CardContent>
-            {!userType ? (
-              <div className="space-y-6">
-                <h2 className="text-xl font-semibold text-center">Je suis :</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Button 
+      <main className="flex-grow container mx-auto px-4 py-8">
+        <h1 className="text-2xl md:text-3xl font-bold mb-8 text-center">
+          Inscription à Gener-Action
+        </h1>
+        
+        <div className="max-w-md mx-auto">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-xl text-center">Créer un compte</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4 mb-6">
+                <h3 className={`font-medium ${userType === "elderly" ? "text-lg" : ""}`}>Je suis :</h3>
+                <div className="flex gap-4">
+                  <Button
+                    type="button"
+                    variant={userType === "elderly" ? "default" : "outline"}
+                    className={`flex-1 ${userType === "elderly" ? "text-lg py-6 flex items-center justify-center" : ""}`}
                     onClick={() => setUserType("elderly")}
-                    className="py-8 text-xl bg-app-blue hover:bg-app-blue/90"
-                    variant="outline"
-                    size="lg"
                   >
-                    Sénior
+                    {userType === "elderly" && <span className="text-xl mr-2">👵</span>}
+                    Senior
                   </Button>
-                  <Button 
+                  <Button
+                    type="button"
+                    variant={userType === "helper" ? "default" : "outline"}
+                    className={`flex-1 ${userType === "elderly" ? "text-lg py-6 flex items-center justify-center" : ""}`}
                     onClick={() => setUserType("helper")}
-                    className="py-8 text-xl"
-                    variant="outline"
-                    size="lg"
                   >
-                    Jeune
+                    {userType === "helper" && <span className="text-xl mr-2">🧑</span>}
+                    Jeune aidant
                   </Button>
                 </div>
               </div>
-            ) : (
+              
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                  {userType === "elderly" ? (
-                    // Formulaire simplifié pour les seniors
-                    <>
-                      <FormField
-                        control={form.control}
-                        name="name"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xl">Votre nom</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Entrez votre nom" {...field} className="text-lg p-6" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      
-                      <FormField
-                        control={form.control}
-                        name="email"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xl">Adresse email</FormLabel>
-                            <FormControl>
-                              <Input type="email" placeholder="votre@email.fr" {...field} className="text-lg p-6" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="password"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xl">Mot de passe</FormLabel>
-                            <FormControl>
-                              <Input type="password" placeholder="••••••••" {...field} className="text-lg p-6" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      
-                      <Button type="submit" className="w-full bg-app-blue hover:bg-app-blue/90 text-xl py-6" disabled={isLoading}>
-                        {isLoading ? "Inscription en cours..." : "S'inscrire"}
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className={userType === "elderly" ? "text-lg" : ""}>Nom complet</FormLabel>
+                        <FormControl>
+                          <Input 
+                            {...field} 
+                            placeholder="Votre nom"
+                            className={userType === "elderly" ? "text-lg p-6" : ""}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className={userType === "elderly" ? "text-lg" : ""}>Email</FormLabel>
+                        <FormControl>
+                          <Input 
+                            {...field} 
+                            type="email" 
+                            placeholder="votre@email.com"
+                            className={userType === "elderly" ? "text-lg p-6" : ""}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className={userType === "elderly" ? "text-lg" : ""}>Mot de passe</FormLabel>
+                        <FormControl>
+                          <Input 
+                            {...field} 
+                            type="password" 
+                            placeholder="••••••••"
+                            className={userType === "elderly" ? "text-lg p-6" : ""}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="age"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className={userType === "elderly" ? "text-lg" : ""}>Âge</FormLabel>
+                        <FormControl>
+                          <Input 
+                            {...field} 
+                            type="number" 
+                            min="18"
+                            placeholder="Votre âge"
+                            className={userType === "elderly" ? "text-lg p-6" : ""}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <Button 
+                    type="submit" 
+                    className={`w-full bg-app-blue hover:bg-app-blue/90 ${userType === "elderly" ? "text-lg py-6" : ""}`}
+                  >
+                    S'inscrire
+                  </Button>
+                  
+                  <div className="text-center">
+                    <p className={userType === "elderly" ? "text-lg" : ""}>
+                      Déjà inscrit ?{" "}
+                      <Button 
+                        variant="link" 
+                        className="p-0" 
+                        onClick={() => navigate("/login")}
+                      >
+                        Se connecter
                       </Button>
-                    </>
-                  ) : (
-                    // Formulaire complet pour les aidants
-                    <>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <FormField
-                          control={form.control}
-                          name="name"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Nom complet</FormLabel>
-                              <FormControl>
-                                <Input placeholder="Entrez votre nom" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={form.control}
-                          name="age"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Âge</FormLabel>
-                              <FormControl>
-                                <Input 
-                                  type="number" 
-                                  placeholder="Votre âge" 
-                                  {...field} 
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-
-                      <FormField
-                        control={form.control}
-                        name="email"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Adresse email</FormLabel>
-                            <FormControl>
-                              <Input type="email" placeholder="votre@email.fr" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="password"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Mot de passe</FormLabel>
-                            <FormControl>
-                              <Input type="password" placeholder="••••••••" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <FormField
-                          control={form.control}
-                          name="phone"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Numéro de téléphone (optionnel)</FormLabel>
-                              <FormControl>
-                                <Input placeholder="06 XX XX XX XX" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={form.control}
-                          name="location"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Ville (optionnel)</FormLabel>
-                              <FormControl>
-                                <Input placeholder="Votre ville" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-
-                      <Button type="submit" className="w-full bg-app-blue hover:bg-app-blue/90" disabled={isLoading}>
-                        {isLoading ? "Inscription en cours..." : "S'inscrire"}
-                      </Button>
-                    </>
-                  )}
+                    </p>
+                  </div>
                 </form>
               </Form>
-            )}
-
-            <div className="mt-6 text-center text-sm">
-              Vous avez déjà un compte?{" "}
-              <Button 
-                variant="link" 
-                className="p-0 h-auto text-app-blue" 
-                onClick={() => navigate("/login")}
-              >
-                Se connecter
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </main>
       
       <Footer />

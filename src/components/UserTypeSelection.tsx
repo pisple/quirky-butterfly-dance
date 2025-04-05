@@ -53,16 +53,16 @@ const UserTypeSelection = ({ onSelection }: UserTypeSelectionProps) => {
           onClick={() => handleSelection("elderly")}
         >
           <CardHeader>
-            <CardTitle className="text-center text-2xl">Sénior</CardTitle>
+            <CardTitle className="text-center text-2xl">Je suis senior</CardTitle>
           </CardHeader>
           <CardContent className="flex justify-center">
             <div className="w-24 h-24 bg-app-blue/20 rounded-full flex items-center justify-center">
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-app-blue"><path d="M11 21H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h5l2 3h9a2 2 0 0 1 2 2v2M21.12 15.88l-4.24 4.24M16.88 15.88l4.24 4.24"/></svg>
+              <span className="text-4xl">👵</span>
             </div>
           </CardContent>
           <CardFooter className="flex justify-center">
             <p className="text-center text-lg">
-              J'ai besoin d'aide pour mes courses ou la cuisine
+              J'ai besoin d'aide pour mes activités
             </p>
           </CardFooter>
         </Card>
@@ -76,16 +76,16 @@ const UserTypeSelection = ({ onSelection }: UserTypeSelectionProps) => {
           onClick={() => handleSelection("helper")}
         >
           <CardHeader>
-            <CardTitle className="text-center text-2xl">Jeune</CardTitle>
+            <CardTitle className="text-center text-2xl">Je suis jeune</CardTitle>
           </CardHeader>
           <CardContent className="flex justify-center">
             <div className="w-24 h-24 bg-app-teal/20 rounded-full flex items-center justify-center">
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-app-teal"><path d="M14 11c5.333 0 5.333-8 0-8"/><path d="M6 11h8"/><path d="M6 15h8"/><path d="M9 21a2 2 0 0 0 2-2v-6"/><path d="M4 15a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2a2 2 0 0 0-2-2"/><path d="M10 7V3"/></svg>
+              <span className="text-4xl">🧑</span>
             </div>
           </CardContent>
           <CardFooter className="flex justify-center">
             <p className="text-center text-lg">
-              Je souhaite aider les personnes séniors (18+ ans)
+              Je souhaite aider des seniors (18+ ans)
             </p>
           </CardFooter>
         </Card>

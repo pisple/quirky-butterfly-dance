@@ -4,7 +4,7 @@ import TaskCard from "./TaskCard";
 import { Task } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MapPin } from "lucide-react";
+import { MapPin, ShoppingCart, ChefHat, Flower, Laptop, Users } from "lucide-react";
 
 interface TaskListProps {
   tasks: Task[];
@@ -161,13 +161,31 @@ const TaskList = ({ tasks, userType, onTaskUpdate }: TaskListProps) => {
           className={`cursor-pointer py-2 px-4 ${filter === "groceries" ? "bg-app-blue" : "bg-gray-200 text-gray-800 hover:bg-gray-300"}`} 
           onClick={() => setFilter("groceries")}
         >
-          Courses
+          <ShoppingCart className="w-4 h-4 mr-1" /> Courses
         </Badge>
         <Badge 
           className={`cursor-pointer py-2 px-4 ${filter === "cooking" ? "bg-app-blue" : "bg-gray-200 text-gray-800 hover:bg-gray-300"}`} 
           onClick={() => setFilter("cooking")}
         >
-          Cuisine
+          <ChefHat className="w-4 h-4 mr-1" /> Cuisine
+        </Badge>
+        <Badge 
+          className={`cursor-pointer py-2 px-4 ${filter === "gardening" ? "bg-app-blue" : "bg-gray-200 text-gray-800 hover:bg-gray-300"}`} 
+          onClick={() => setFilter("gardening")}
+        >
+          <Flower className="w-4 h-4 mr-1" /> Jardinage
+        </Badge>
+        <Badge 
+          className={`cursor-pointer py-2 px-4 ${filter === "technology" ? "bg-app-blue" : "bg-gray-200 text-gray-800 hover:bg-gray-300"}`} 
+          onClick={() => setFilter("technology")}
+        >
+          <Laptop className="w-4 h-4 mr-1" /> Technologie
+        </Badge>
+        <Badge 
+          className={`cursor-pointer py-2 px-4 ${filter === "accompaniment" ? "bg-app-blue" : "bg-gray-200 text-gray-800 hover:bg-gray-300"}`} 
+          onClick={() => setFilter("accompaniment")}
+        >
+          <Users className="w-4 h-4 mr-1" /> Accompagnement
         </Badge>
         
         {userType === "helper" && (

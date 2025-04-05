@@ -26,13 +26,13 @@ import { useToast } from "@/hooks/use-toast";
 import { v4 as uuidv4 } from 'uuid';
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
-import { ShoppingCart, ChefHat, Store, PillIcon, MapPin, Cookie, Truck, Calendar, Weight } from "lucide-react";
+import { ShoppingCart, ChefHat, Flower, Laptop, Users, MapPin, Calendar, Weight, Store, PillIcon, Cookie, Truck } from "lucide-react";
 
-// Importation des villes belges depuis un fichier séparé pour une meilleure organisation
+// Importation des villes belges depuis un fichier séparé
 import { BELGIAN_CITIES } from "@/data/belgian-cities";
 
 const taskRequestSchema = z.object({
-  type: z.enum(["groceries", "cooking"], { 
+  type: z.enum(["groceries", "cooking", "gardening", "technology", "accompaniment"], { 
     required_error: "Veuillez sélectionner un type d'aide" 
   }),
   keywords: z.array(z.string()).min(1, { message: "Veuillez sélectionner au moins un mot-clé" }),
@@ -64,6 +64,34 @@ const COOKING_KEYWORDS: KeywordOption[] = [
   { value: "aide-au-service", label: "Aide au service" }
 ];
 
+const GARDENING_KEYWORDS: KeywordOption[] = [
+  { value: "tonte-pelouse", label: "Tonte de pelouse" },
+  { value: "taille-haie", label: "Taille de haie" },
+  { value: "désherbage", label: "Désherbage" },
+  { value: "plantation", label: "Plantation" },
+  { value: "arrosage", label: "Arrosage" },
+  { value: "ramassage-feuilles", label: "Ramassage de feuilles" },
+];
+
+const TECHNOLOGY_KEYWORDS: KeywordOption[] = [
+  { value: "ordinateur", label: "Aide ordinateur" },
+  { value: "smartphone", label: "Aide smartphone" },
+  { value: "internet", label: "Connexion internet" },
+  { value: "email", label: "Gestion emails" },
+  { value: "imprimante", label: "Imprimante" },
+  { value: "tv", label: "Télévision" },
+  { value: "formation", label: "Formation numérique" },
+];
+
+const ACCOMPANIMENT_KEYWORDS: KeywordOption[] = [
+  { value: "rendez-vous-medical", label: "Rendez-vous médical" },
+  { value: "demarches-administratives", label: "Démarches administratives" },
+  { value: "promenade", label: "Promenade" },
+  { value: "visite-culturelle", label: "Visite culturelle" },
+  { value: "compagnie", label: "Simple compagnie" },
+  { value: "lecture", label: "Lecture" },
+];
+
 // Fonction pour associer un icône à chaque mot-clé
 const getKeywordIcon = (keyword: string) => {
   switch (keyword) {
@@ -85,6 +113,40 @@ const getKeywordIcon = (keyword: string) => {
       return <Weight className="mr-2 h-4 w-4" />;
     default:
       return null;
+  }
+};
+
+const getTaskIcon = (type: TaskType) => {
+  switch (type) {
+    case "groceries":
+      return <ShoppingCart className="h-6 w-6" />;
+    case "cooking":
+      return <ChefHat className="h-6 w-6" />;
+    case "gardening":
+      return <Flower className="h-6 w-6" />;
+    case "technology":
+      return <Laptop className="h-6 w-6" />;
+    case "accompaniment":
+      return <Users className="h-6 w-6" />;
+    default:
+      return <ShoppingCart className="h-6 w-6" />;
+  }
+};
+
+const getTaskEmoji = (type: TaskType) => {
+  switch (type) {
+    case "groceries":
+      return "🛒";
+    case "cooking":
+      return "👨‍🍳";
+    case "gardening":
+      return "🌻";
+    case "technology":
+      return "📱";
+    case "accompaniment":
+      return "👥";
+    default:
+      return "🛒";
   }
 };
 
@@ -222,7 +284,20 @@ const TaskRequestForm = () => {
   }, [taskType, form]);
   
   const getKeywordsForType = (type: TaskType): KeywordOption[] => {
-    return type === "groceries" ? GROCERIES_KEYWORDS : COOKING_KEYWORDS;
+    switch (type) {
+      case "groceries":
+        return GROCERIES_KEYWORDS;
+      case "cooking":
+        return COOKING_KEYWORDS;
+      case "gardening":
+        return GARDENING_KEYWORDS;
+      case "technology":
+        return TECHNOLOGY_KEYWORDS;
+      case "accompaniment":
+        return ACCOMPANIMENT_KEYWORDS;
+      default:
+        return GROCERIES_KEYWORDS;
+    }
   };
   
   const toggleKeyword = (keyword: string) => {
@@ -283,7 +358,7 @@ const TaskRequestForm = () => {
   return (
     <Card className="w-full max-w-2xl mx-auto">
       <CardHeader>
-        <CardTitle className="text-2xl md:text-3xl text-center">Demander de l'aide</CardTitle>
+        <CardTitle className="text-2xl md:text-3xl text-center">J'ai besoin d'aide</CardTitle>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -293,26 +368,53 @@ const TaskRequestForm = () => {
               name="type"
               render={({ field }) => (
                 <FormItem className="space-y-3">
-                  <FormLabel className="text-xl">De quel type d'aide avez-vous besoin ?</FormLabel>
+                  <FormLabel className="text-xl">Quel type d'aide cherchez-vous ?</FormLabel>
                   <FormControl>
-                    <div className="flex flex-col space-y-3 md:flex-row md:space-y-0 md:space-x-4">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                       <Button
                         type="button"
                         variant={field.value === "groceries" ? "default" : "outline"}
-                        className="flex-1 text-lg py-6"
+                        className="flex flex-col items-center justify-center p-4 h-24 text-lg"
                         onClick={() => form.setValue("type", "groceries")}
                       >
-                        <ShoppingCart className="mr-2 h-5 w-5" />
+                        <span className="text-3xl mb-2">🛒</span>
                         Courses
                       </Button>
                       <Button
                         type="button"
                         variant={field.value === "cooking" ? "default" : "outline"}
-                        className="flex-1 text-lg py-6"
+                        className="flex flex-col items-center justify-center p-4 h-24 text-lg"
                         onClick={() => form.setValue("type", "cooking")}
                       >
-                        <ChefHat className="mr-2 h-5 w-5" />
-                        Aide à la cuisine
+                        <span className="text-3xl mb-2">👨‍🍳</span>
+                        Cuisine
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={field.value === "gardening" ? "default" : "outline"}
+                        className="flex flex-col items-center justify-center p-4 h-24 text-lg"
+                        onClick={() => form.setValue("type", "gardening")}
+                      >
+                        <span className="text-3xl mb-2">🌻</span>
+                        Jardinage
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={field.value === "technology" ? "default" : "outline"}
+                        className="flex flex-col items-center justify-center p-4 h-24 text-lg"
+                        onClick={() => form.setValue("type", "technology")}
+                      >
+                        <span className="text-3xl mb-2">📱</span>
+                        Technologie
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={field.value === "accompaniment" ? "default" : "outline"}
+                        className="flex flex-col items-center justify-center p-4 h-24 text-lg md:col-start-2"
+                        onClick={() => form.setValue("type", "accompaniment")}
+                      >
+                        <span className="text-3xl mb-2">👥</span>
+                        Accompagnement
                       </Button>
                     </div>
                   </FormControl>
@@ -326,7 +428,7 @@ const TaskRequestForm = () => {
               name="keywords"
               render={() => (
                 <FormItem>
-                  <FormLabel className="text-xl">De quoi avez-vous besoin spécifiquement ?</FormLabel>
+                  <FormLabel className="text-xl">Précisions :</FormLabel>
                   <FormControl>
                     <div className="flex flex-wrap gap-2">
                       {getKeywordsForType(taskType).map((keyword) => (
@@ -355,7 +457,7 @@ const TaskRequestForm = () => {
               name="location"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-xl">Ville</FormLabel>
+                  <FormLabel className="text-xl">Où ?</FormLabel>
                   <Select 
                     onValueChange={field.onChange} 
                     defaultValue={field.value || defaultCity}
@@ -390,7 +492,7 @@ const TaskRequestForm = () => {
               name="date"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-xl">Date</FormLabel>
+                  <FormLabel className="text-xl">Quand ?</FormLabel>
                   <FormControl>
                     <Input {...field} type="date" className="text-lg p-4" />
                   </FormControl>
@@ -404,7 +506,7 @@ const TaskRequestForm = () => {
               className="w-full py-6 text-xl font-medium bg-green-600 hover:bg-green-700"
               disabled={submitting || selectedKeywords.length === 0}
             >
-              {submitting ? "Envoi en cours..." : "Envoyer la demande"}
+              {submitting ? "Envoi en cours..." : "Envoyer ma demande"}
             </Button>
           </form>
         </Form>

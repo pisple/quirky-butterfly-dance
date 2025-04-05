@@ -1,9 +1,10 @@
+
 import { useState } from "react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Task } from "@/types";
-import { Clock, ShoppingCart, ChefHat, MapPin } from "lucide-react";
+import { Clock, ShoppingCart, ChefHat, Flower, Laptop, Users, MapPin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import MapDisplay from "./MapDisplay";
 
@@ -83,7 +84,38 @@ const TaskCard = ({ task, userType, onTaskUpdate }: TaskCardProps) => {
     }
   };
 
-  const TaskIcon = task.type === "groceries" ? ShoppingCart : ChefHat;
+  const getTaskIcon = () => {
+    switch (task.type) {
+      case "groceries": return <ShoppingCart className="text-app-blue" size={userType === "elderly" ? 28 : 20} />;
+      case "cooking": return <ChefHat className="text-app-blue" size={userType === "elderly" ? 28 : 20} />;
+      case "gardening": return <Flower className="text-app-blue" size={userType === "elderly" ? 28 : 20} />;
+      case "technology": return <Laptop className="text-app-blue" size={userType === "elderly" ? 28 : 20} />;
+      case "accompaniment": return <Users className="text-app-blue" size={userType === "elderly" ? 28 : 20} />;
+      default: return <ShoppingCart className="text-app-blue" size={userType === "elderly" ? 28 : 20} />;
+    }
+  };
+  
+  const getTaskEmoji = () => {
+    switch (task.type) {
+      case "groceries": return "🛒";
+      case "cooking": return "👨‍🍳";
+      case "gardening": return "🌻";
+      case "technology": return "📱";
+      case "accompaniment": return "👥";
+      default: return "";
+    }
+  };
+  
+  const getTaskName = () => {
+    switch (task.type) {
+      case "groceries": return "Courses";
+      case "cooking": return "Cuisine";
+      case "gardening": return "Jardinage";
+      case "technology": return "Aide technologie";
+      case "accompaniment": return "Accompagnement";
+      default: return task.type;
+    }
+  };
 
   if (task.status === "cancelled" || task.status === "completed") {
     return null;
@@ -93,8 +125,12 @@ const TaskCard = ({ task, userType, onTaskUpdate }: TaskCardProps) => {
     <Card className="w-full">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className={`flex items-center gap-2 ${userType === "elderly" ? "text-xl" : ""}`}>
-          <TaskIcon className="text-app-blue" size={userType === "elderly" ? 28 : 20} />
-          {task.type === "groceries" ? "Courses" : "Cuisine"}
+          {userType === "elderly" ? (
+            <span className="text-2xl mr-2">{getTaskEmoji()}</span>
+          ) : (
+            getTaskIcon()
+          )}
+          {getTaskName()}
         </CardTitle>
         <Badge className={`${getStatusColor(task.status)} ${userType === "elderly" ? "text-lg px-3 py-1" : ""}`}>
           {getStatusText(task.status)}
