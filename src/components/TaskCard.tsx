@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -37,7 +36,6 @@ const TaskCard = ({ task, userType, onTaskUpdate }: TaskCardProps) => {
           return;
         }
         
-        // Supabase client correctly typed with table names
         const { error } = await supabase
           .from('tasks')
           .update({ 
@@ -79,7 +77,6 @@ const TaskCard = ({ task, userType, onTaskUpdate }: TaskCardProps) => {
       setUpdating(true);
       
       try {
-        // Supabase client correctly typed
         const { error } = await supabase
           .from('tasks')
           .update({ status: 'cancelled' })
@@ -118,7 +115,6 @@ const TaskCard = ({ task, userType, onTaskUpdate }: TaskCardProps) => {
       setUpdating(true);
       
       try {
-        // Supabase client correctly typed
         const { error: taskError } = await supabase
           .from('tasks')
           .update({ status: 'completed' })
@@ -139,7 +135,6 @@ const TaskCard = ({ task, userType, onTaskUpdate }: TaskCardProps) => {
           const { data: { user } } = await supabase.auth.getUser();
           
           if (user) {
-            // Supabase client correctly typed
             const { data: pointsData, error: pointsGetError } = await supabase
               .from('helper_points')
               .select('points')
@@ -152,7 +147,6 @@ const TaskCard = ({ task, userType, onTaskUpdate }: TaskCardProps) => {
               const currentPoints = pointsData?.points || 0;
               const newPoints = currentPoints + 50;
               
-              // Supabase client correctly typed
               const { error: pointsUpdateError } = await supabase
                 .from('helper_points')
                 .update({ points: newPoints })

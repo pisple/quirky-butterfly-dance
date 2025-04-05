@@ -1,4 +1,5 @@
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
 import TaskCard from "./TaskCard";
 import { Task, UserType } from "@/types";
 import { Badge } from "@/components/ui/badge";
@@ -30,8 +31,9 @@ const TaskList = ({ tasks, userType, onTaskUpdate }: TaskListProps) => {
     );
   }
   
-  // Get user ID from Supabase auth - fix async issue
-  const userId = supabase.auth.getUser().then(response => response.data.user?.id || "");
+  // Get user ID from Supabase auth
+  const user = supabase.auth.getUser();
+  const userId = user?.data?.user?.id || "";
   
   // Pour les seniors: voir uniquement leurs propres tâches
   // Pour les jeunes aidants: voir toutes les tâches créées par les seniors

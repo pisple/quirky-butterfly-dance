@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -35,28 +36,25 @@ const AcceptedTasks = () => {
       }
       
       // Fetch tasks
-      fetchTasks(session.user.id, profileData?.type as UserType);
+      fetchTasks(session.user.id, profileData?.type);
     };
     
     checkSession();
   }, [navigate]);
   
-  const fetchTasks = async (userId: string, type?: UserType) => {
+  const fetchTasks = async (userId: string, type?: string) => {
     try {
-      // Use properly typed Supabase client
-      let query = supabase
-        .from('tasks')
-        .select(`
-          id,
-          type,
-          keywords,
-          location,
-          requested_by,
-          requested_date,
-          status,
-          helper_assigned,
-          profiles!tasks_requested_by_fkey(name)
-        `);
+      let query = supabase.from('tasks').select(`
+        id,
+        type,
+        keywords,
+        location,
+        requested_by,
+        requested_date,
+        status,
+        helper_assigned,
+        profiles:requested_by(name)
+      `);
       
       // Filter based on user type
       if (type === 'elderly') {
@@ -78,13 +76,13 @@ const AcceptedTasks = () => {
         // Transform data to match our Task interface
         const formattedTasks: Task[] = data.map(task => ({
           id: task.id,
-          type: task.type as TaskType,
-          keywords: task.keywords || [],
-          location: task.location || "",
-          requestedBy: task.requested_by || "",
+          type: task.type,
+          keywords: task.keywords,
+          location: task.location,
+          requestedBy: task.requested_by,
           requestedByName: task.profiles?.name || "Utilisateur",
-          requestedDate: task.requested_date || "",
-          status: task.status as "pending" | "assigned" | "completed" | "cancelled",
+          requestedDate: task.requested_date,
+          status: task.status,
           helperAssigned: task.helper_assigned
         }));
         
@@ -150,8 +148,7 @@ const AcceptedTasks = () => {
         if (pointsGetError) {
           console.error("Error getting helper points:", pointsGetError);
         } else {
-          // Null safety check for pointsData
-          const currentPoints = (pointsData && pointsData.points) ? pointsData.points : 0;
+          const currentPoints = pointsData?.points || 0;
           const newPoints = currentPoints + 50;
           
           // Update points

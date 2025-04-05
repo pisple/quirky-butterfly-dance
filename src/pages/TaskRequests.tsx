@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -37,7 +38,6 @@ const TaskRequests = () => {
           variant: "destructive"
         });
       } else if (profileData) {
-        // Type assertion since we know the possible values
         setUserType(profileData.type as UserType);
         
         // Only elderly can request tasks
