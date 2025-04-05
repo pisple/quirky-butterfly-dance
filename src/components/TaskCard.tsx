@@ -22,12 +22,23 @@ const TaskCard = ({ task, userType, onTaskUpdate }: TaskCardProps) => {
     if (onTaskUpdate) {
       onTaskUpdate(task.id, "assigned");
       
-      const userEmail = localStorage.getItem("userEmail") || "";
+      // Get the elderly's name for the notification
+      const elderlyName = task.requestedByName || "Une personne senior";
       
+      // Show notification toast to the helper
       toast({
         title: "Tâche acceptée",
-        description: "Vous avez accepté cette tâche. La personne sénior sera notifiée.",
+        description: `Vous avez accepté d'aider ${elderlyName} avec ${getTaskName()} à ${task.location}.`,
       });
+      
+      // Store that a notification has been sent
+      // This could be expanded in a real app to send to the elderly as well
+      const updatedTasks = JSON.parse(localStorage.getItem("tasks") || "[]");
+      const taskIndex = updatedTasks.findIndex((t: Task) => t.id === task.id);
+      if (taskIndex !== -1) {
+        updatedTasks[taskIndex].notificationSent = true;
+        localStorage.setItem("tasks", JSON.stringify(updatedTasks));
+      }
     }
   };
   
@@ -48,17 +59,18 @@ const TaskCard = ({ task, userType, onTaskUpdate }: TaskCardProps) => {
       
       if (userType === "helper") {
         const currentPoints = parseInt(localStorage.getItem("helperPoints") || "0");
+        // Award 50 points for completing a task
         const newPoints = currentPoints + 50;
         localStorage.setItem("helperPoints", newPoints.toString());
         
         toast({
           title: "Tâche terminée",
-          description: "Merci pour votre aide ! Vous avez gagné 50 points.",
+          description: `Merci pour votre aide ! Vous avez gagné 50 points. Vous avez maintenant ${newPoints} points.`,
         });
       } else {
         toast({
           title: "Tâche terminée",
-          description: "Merci pour votre aide !",
+          description: "Merci d'avoir confirmé que la tâche est terminée !",
         });
       }
     }

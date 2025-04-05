@@ -46,7 +46,7 @@ const AcceptedTasks = () => {
         
         toast({
           title: "Tâche terminée",
-          description: "La tâche a été marquée comme terminée avec succès. Vous avez gagné 50 points!"
+          description: `La tâche a été marquée comme terminée avec succès. Vous avez gagné 50 points! Vous avez maintenant ${newPoints} points au total.`
         });
       } else {
         toast({

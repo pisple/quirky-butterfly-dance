@@ -13,6 +13,7 @@ export interface Task {
   requestedDate: string;
   status: "pending" | "assigned" | "completed" | "cancelled";
   helperAssigned: string;
+  notificationSent?: boolean;
 }
 
 export interface KeywordOption {
