@@ -4,6 +4,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Menu } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import Notifications from "./Notifications";
 
 interface HeaderProps {
   userType?: "elderly" | "helper";
@@ -28,6 +29,11 @@ export const Header = ({ userType: propsUserType }: HeaderProps) => {
       <div className="container mx-auto px-4 py-4">
         <div className="flex justify-between items-center">
           <Link to="/" className="flex items-center">
+            <img 
+              src="/logo-generaction.png" 
+              alt="Gener-Action Logo" 
+              className="h-10 mr-2"
+            />
             <span className={`font-semibold text-app-blue ${userType === "elderly" ? "text-2xl" : "text-xl"}`}>
               Gener-Action
             </span>
@@ -62,6 +68,11 @@ export const Header = ({ userType: propsUserType }: HeaderProps) => {
                 <Link to="/profile" className={`text-app-dark hover:text-app-blue transition ${userType === "elderly" ? "text-xl" : ""}`}>
                   Profil
                 </Link>
+                
+                <div className="mx-2">
+                  <Notifications />
+                </div>
+                
                 <Button 
                   variant="outline" 
                   className={`ml-4 ${userType === "elderly" ? "text-lg px-6 py-5" : ""}`}
@@ -113,6 +124,9 @@ export const Header = ({ userType: propsUserType }: HeaderProps) => {
                 <Link to="/profile" className="block py-2 text-app-dark hover:text-app-blue transition">
                   Profil
                 </Link>
+                <div className="py-2">
+                  <Notifications />
+                </div>
                 <Button
                   variant="outline"
                   className="w-full mt-2"

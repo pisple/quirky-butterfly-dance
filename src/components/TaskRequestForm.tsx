@@ -23,14 +23,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { TaskType, KeywordOption, City } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { v4 as uuidv4 } from 'uuid';
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { ShoppingCart, ChefHat, Flower, Laptop, Users, MapPin, Calendar, Weight, Store, PillIcon, Cookie, Truck } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 
-// Importation des villes belges depuis un fichier séparé
-import { BELGIAN_CITIES } from "@/data/belgian-cities";
-
+// Schema de validation pour le formulaire de demande d'aide
 const taskRequestSchema = z.object({
   type: z.enum(["groceries", "cooking", "gardening", "technology", "accompaniment"], { 
     required_error: "Veuillez sélectionner un type d'aide" 
@@ -42,6 +41,7 @@ const taskRequestSchema = z.object({
 
 type TaskRequestFormValues = z.infer<typeof taskRequestSchema>;
 
+// Définitions des mots-clés par type de tâche
 const GROCERIES_KEYWORDS: KeywordOption[] = [
   { value: "supermarché", label: "Supermarché" },
   { value: "pharmacie", label: "Pharmacie" },
@@ -116,40 +116,7 @@ const getKeywordIcon = (keyword: string) => {
   }
 };
 
-const getTaskIcon = (type: TaskType) => {
-  switch (type) {
-    case "groceries":
-      return <ShoppingCart className="h-6 w-6" />;
-    case "cooking":
-      return <ChefHat className="h-6 w-6" />;
-    case "gardening":
-      return <Flower className="h-6 w-6" />;
-    case "technology":
-      return <Laptop className="h-6 w-6" />;
-    case "accompaniment":
-      return <Users className="h-6 w-6" />;
-    default:
-      return <ShoppingCart className="h-6 w-6" />;
-  }
-};
-
-const getTaskEmoji = (type: TaskType) => {
-  switch (type) {
-    case "groceries":
-      return "🛒";
-    case "cooking":
-      return "👨‍🍳";
-    case "gardening":
-      return "🌻";
-    case "technology":
-      return "📱";
-    case "accompaniment":
-      return "👥";
-    default:
-      return "🛒";
-  }
-};
-
+// Fonction pour calculer la distance entre deux points géographiques
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
   const R = 6371; // Rayon de la Terre en km
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -162,19 +129,9 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * c; // Distance en km
 };
 
-const findNearestCities = (latitude: number, longitude: number, limit: number = 20): City[] => {
-  const citiesWithDistance = BELGIAN_CITIES.map(city => ({
-    name: city.name,
-    distance: calculateDistance(latitude, longitude, city.latitude, city.longitude)
-  }));
-
-  return citiesWithDistance
-    .sort((a, b) => a.distance - b.distance)
-    .slice(0, limit);
-};
-
 const TaskRequestForm = () => {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [submitting, setSubmitting] = useState(false);
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
   const [defaultCity, setDefaultCity] = useState<string>("");
@@ -183,86 +140,125 @@ const TaskRequestForm = () => {
   const navigate = useNavigate();
   
   useEffect(() => {
-    const getUserLocation = () => {
-      const userProfile = localStorage.getItem("userProfile");
-      if (userProfile) {
-        try {
-          const parsed = JSON.parse(userProfile);
-          if (parsed.location) {
-            setDefaultCity(parsed.location);
-            form.setValue("location", parsed.location);
-          }
-          if (parsed.coordinates) {
-            loadNearbyCities(parsed.coordinates.latitude, parsed.coordinates.longitude);
-          } else {
-            getCurrentLocation();
-          }
-        } catch (e) {
-          console.error("Erreur lors de la lecture du profil utilisateur:", e);
+    if (!user) {
+      toast({
+        title: "Veuillez vous connecter",
+        description: "Vous devez être connecté pour accéder à cette page.",
+      });
+      navigate("/login");
+      return;
+    }
+    
+    const loadUserProfile = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('location')
+          .eq('id', user.id)
+          .single();
+          
+        if (error && error.code !== 'PGRST116') throw error;
+        
+        if (data?.location) {
+          setDefaultCity(data.location);
+          form.setValue("location", data.location);
+        } else {
           getCurrentLocation();
         }
-      } else {
-        const storedLocation = localStorage.getItem("userLocation");
-        if (storedLocation) {
-          setDefaultCity(storedLocation);
-          form.setValue("location", storedLocation);
-        }
+      } catch (error) {
+        console.error("Erreur lors du chargement du profil:", error);
         getCurrentLocation();
       }
     };
+    
+    const loadCities = async () => {
+      setIsLoadingCities(true);
+      try {
+        const { data, error } = await supabase
+          .from('belgian_cities')
+          .select('name, latitude, longitude');
+          
+        if (error) throw error;
+        
+        if (data) {
+          const cities = data.map(city => ({
+            name: city.name,
+            latitude: city.latitude,
+            longitude: city.longitude,
+            distance: undefined
+          }));
+          
+          setNearbyCities(cities.slice(0, 20));
+        }
+      } catch (error) {
+        console.error("Erreur lors du chargement des villes:", error);
+      } finally {
+        setIsLoadingCities(false);
+      }
+    };
 
-    getUserLocation();
-  }, []);
+    loadUserProfile();
+    loadCities();
+  }, [user, navigate, toast]);
 
   const getCurrentLocation = () => {
     setIsLoadingCities(true);
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (position) => {
+        async (position) => {
           const { latitude, longitude } = position.coords;
-          loadNearbyCities(latitude, longitude);
           
-          const userProfile = localStorage.getItem("userProfile");
-          if (userProfile) {
-            try {
-              const parsed = JSON.parse(userProfile);
-              const updatedProfile = {
-                ...parsed,
-                coordinates: { latitude, longitude }
-              };
-              localStorage.setItem("userProfile", JSON.stringify(updatedProfile));
-            } catch (e) {
-              console.error("Erreur lors de la mise à jour des coordonnées:", e);
+          try {
+            // Charger toutes les villes de la base de données
+            const { data, error } = await supabase
+              .from('belgian_cities')
+              .select('name, latitude, longitude');
+              
+            if (error) throw error;
+            
+            if (data) {
+              // Calculer la distance pour chaque ville
+              const citiesWithDistance = data.map(city => ({
+                name: city.name,
+                latitude: city.latitude,
+                longitude: city.longitude,
+                distance: calculateDistance(latitude, longitude, city.latitude, city.longitude)
+              }));
+              
+              // Trier par proximité
+              const sortedCities = citiesWithDistance.sort((a, b) => a.distance - b.distance);
+              
+              setNearbyCities(sortedCities.slice(0, 20));
+              
+              if (sortedCities.length > 0) {
+                setDefaultCity(sortedCities[0].name);
+                form.setValue("location", sortedCities[0].name);
+              }
             }
+            
+            // Mettre à jour le profil utilisateur avec les coordonnées
+            if (user) {
+              await supabase
+                .from('profiles')
+                .update({
+                  location: data && data.length > 0 ? data[0].name : undefined,
+                })
+                .eq('id', user.id);
+            }
+          } catch (error) {
+            console.error("Erreur lors du traitement des villes:", error);
+          } finally {
+            setIsLoadingCities(false);
           }
         },
         (error) => {
           console.error("Erreur de géolocalisation:", error);
-          setNearbyCities(BELGIAN_CITIES.slice(0, 20).map(city => ({
-            name: city.name,
-            distance: undefined
-          })));
           setIsLoadingCities(false);
         },
         { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
       );
     } else {
-      setNearbyCities(BELGIAN_CITIES.slice(0, 20).map(city => ({
-        name: city.name,
-        distance: undefined
-      })));
       setIsLoadingCities(false);
-    }
-  };
-
-  const loadNearbyCities = (latitude: number, longitude: number) => {
-    const nearestCities = findNearestCities(latitude, longitude);
-    setNearbyCities(nearestCities);
-    setIsLoadingCities(false);
-    
-    if (!defaultCity && nearestCities.length > 0) {
-      setDefaultCity(nearestCities[0].name);
-      form.setValue("location", nearestCities[0].name);
     }
   };
   
@@ -314,35 +310,32 @@ const TaskRequestForm = () => {
     form.setValue("keywords", newSelectedKeywords, { shouldValidate: true });
   };
 
-  const onSubmit = (values: TaskRequestFormValues) => {
+  const onSubmit = async (values: TaskRequestFormValues) => {
+    if (!user) return;
+    
     setSubmitting(true);
     
-    const userName = localStorage.getItem("userName") || "Utilisateur";
-    const userId = localStorage.getItem("userId") || "user1";
-    
-    const newTask = {
-      id: uuidv4(),
-      type: values.type,
-      keywords: values.keywords,
-      location: values.location,
-      requestedBy: userId,
-      requestedByName: userName,
-      requestedDate: values.date,
-      status: "pending",
-      helperAssigned: ""
-    };
-    
-    const existingTasks = JSON.parse(localStorage.getItem("tasks") || "[]");
-    const updatedTasks = [...existingTasks, newTask];
-    localStorage.setItem("tasks", JSON.stringify(updatedTasks));
-    
-    setTimeout(() => {
-      setSubmitting(false);
-      console.log(values);
+    try {
+      // Créer la tâche dans la base de données
+      const { error } = await supabase
+        .from('tasks')
+        .insert([{
+          type: values.type,
+          keywords: values.keywords,
+          location: values.location,
+          requested_by: user.id,
+          requested_date: values.date,
+          status: 'pending'
+        }]);
+        
+      if (error) throw error;
+      
       toast({
         title: "Demande envoyée",
         description: "Votre demande d'aide a été envoyée avec succès.",
       });
+      
+      // Réinitialiser le formulaire
       form.reset({
         type: "groceries", 
         keywords: [], 
@@ -351,8 +344,18 @@ const TaskRequestForm = () => {
       });
       setSelectedKeywords([]);
       
+      // Rediriger vers le tableau de bord
       navigate("/dashboard");
-    }, 1000);
+    } catch (error) {
+      console.error("Erreur lors de la création de la demande:", error);
+      toast({
+        title: "Erreur",
+        description: "Une erreur s'est produite lors de l'envoi de votre demande.",
+        variant: "destructive"
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
