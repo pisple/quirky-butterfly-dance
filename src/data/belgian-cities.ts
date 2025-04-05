@@ -1,3 +1,4 @@
+
 // Liste complète des villes et villages de Belgique
 export const BELGIAN_CITIES = [
   // Additional prominent cities (placed at the top for visibility)
@@ -263,4 +264,5 @@ export const BELGIAN_CITIES = [
   { name: "Viroinval", latitude: 50.0750, longitude: 4.6167 },
   { name: "Virton", latitude: 49.5672, longitude: 5.5281 },
   { name: "Visé", latitude: 50.7386, longitude: 5.7017 },
-  { name: "Vresse-sur-Semois", latitude: 49.8667, longitude: 4
+  { name: "Vresse-sur-Semois", latitude: 49.8667, longitude: 4.8667 }
+];
