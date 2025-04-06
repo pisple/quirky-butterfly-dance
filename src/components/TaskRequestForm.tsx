@@ -25,8 +25,10 @@ import { TaskType, KeywordOption, City } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { v4 as uuidv4 } from 'uuid';
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
 import { ShoppingCart, ChefHat, Flower, Laptop, Users, MapPin, Calendar, Weight, Store, PillIcon, Cookie, Truck } from "lucide-react";
+import { createTask } from "@/utils/supabaseRPC";
 
 // Importation des villes belges depuis un fichier séparé
 import { BELGIAN_CITIES } from "@/data/belgian-cities";
@@ -175,6 +177,7 @@ const findNearestCities = (latitude: number, longitude: number, limit: number = 
 
 const TaskRequestForm = () => {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [submitting, setSubmitting] = useState(false);
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
   const [defaultCity, setDefaultCity] = useState<string>("");
@@ -182,37 +185,45 @@ const TaskRequestForm = () => {
   const [isLoadingCities, setIsLoadingCities] = useState<boolean>(false);
   const navigate = useNavigate();
   
+  const form = useForm<TaskRequestFormValues>({
+    resolver: zodResolver(taskRequestSchema),
+    defaultValues: {
+      type: "groceries",
+      keywords: [],
+      location: "",
+      date: new Date().toISOString().split("T")[0],
+    },
+  });
+  
   useEffect(() => {
+    if (!user) {
+      toast({
+        title: "Veuillez vous connecter",
+        description: "Vous devez être connecté pour créer une demande d'aide.",
+      });
+      navigate("/login");
+      return;
+    }
+    
     const getUserLocation = () => {
-      const userProfile = localStorage.getItem("userProfile");
-      if (userProfile) {
+      setIsLoadingCities(true);
+      
+      // Try to get stored location first
+      const userLocation = localStorage.getItem("userLocation");
+      if (userLocation) {
         try {
-          const parsed = JSON.parse(userProfile);
-          if (parsed.location) {
-            setDefaultCity(parsed.location);
-            form.setValue("location", parsed.location);
-          }
-          if (parsed.coordinates) {
-            loadNearbyCities(parsed.coordinates.latitude, parsed.coordinates.longitude);
-          } else {
-            getCurrentLocation();
-          }
+          const { latitude, longitude } = JSON.parse(userLocation);
+          loadNearbyCities(latitude, longitude);
         } catch (e) {
-          console.error("Erreur lors de la lecture du profil utilisateur:", e);
           getCurrentLocation();
         }
       } else {
-        const storedLocation = localStorage.getItem("userLocation");
-        if (storedLocation) {
-          setDefaultCity(storedLocation);
-          form.setValue("location", storedLocation);
-        }
         getCurrentLocation();
       }
     };
 
     getUserLocation();
-  }, []);
+  }, [navigate, toast, user]);
 
   const getCurrentLocation = () => {
     setIsLoadingCities(true);
@@ -222,19 +233,8 @@ const TaskRequestForm = () => {
           const { latitude, longitude } = position.coords;
           loadNearbyCities(latitude, longitude);
           
-          const userProfile = localStorage.getItem("userProfile");
-          if (userProfile) {
-            try {
-              const parsed = JSON.parse(userProfile);
-              const updatedProfile = {
-                ...parsed,
-                coordinates: { latitude, longitude }
-              };
-              localStorage.setItem("userProfile", JSON.stringify(updatedProfile));
-            } catch (e) {
-              console.error("Erreur lors de la mise à jour des coordonnées:", e);
-            }
-          }
+          const coordinates = { latitude, longitude };
+          localStorage.setItem("userLocation", JSON.stringify(coordinates));
         },
         (error) => {
           console.error("Erreur de géolocalisation:", error);
@@ -265,16 +265,6 @@ const TaskRequestForm = () => {
       form.setValue("location", nearestCities[0].name);
     }
   };
-  
-  const form = useForm<TaskRequestFormValues>({
-    resolver: zodResolver(taskRequestSchema),
-    defaultValues: {
-      type: "groceries",
-      keywords: [],
-      location: "",
-      date: new Date().toISOString().split("T")[0],
-    },
-  });
 
   const taskType = form.watch("type") as TaskType;
   
@@ -314,45 +304,55 @@ const TaskRequestForm = () => {
     form.setValue("keywords", newSelectedKeywords, { shouldValidate: true });
   };
 
-  const onSubmit = (values: TaskRequestFormValues) => {
+  const onSubmit = async (values: TaskRequestFormValues) => {
+    if (!user) return;
+    
     setSubmitting(true);
     
-    const userName = localStorage.getItem("userName") || "Utilisateur";
-    const userId = localStorage.getItem("userId") || "user1";
-    
-    const newTask = {
-      id: uuidv4(),
-      type: values.type,
-      keywords: values.keywords,
-      location: values.location,
-      requestedBy: userId,
-      requestedByName: userName,
-      requestedDate: values.date,
-      status: "pending",
-      helperAssigned: ""
-    };
-    
-    const existingTasks = JSON.parse(localStorage.getItem("tasks") || "[]");
-    const updatedTasks = [...existingTasks, newTask];
-    localStorage.setItem("tasks", JSON.stringify(updatedTasks));
-    
-    setTimeout(() => {
-      setSubmitting(false);
-      console.log(values);
-      toast({
-        title: "Demande envoyée",
-        description: "Votre demande d'aide a été envoyée avec succès.",
-      });
-      form.reset({
-        type: "groceries", 
-        keywords: [], 
-        location: values.location, 
-        date: new Date().toISOString().split("T")[0]
-      });
-      setSelectedKeywords([]);
+    try {
+      const taskId = uuidv4();
       
-      navigate("/dashboard");
-    }, 1000);
+      const newTask = {
+        id: taskId,
+        type: values.type,
+        keywords: values.keywords,
+        location: values.location,
+        requestedBy: user.id,
+        requestedByName: user.name,
+        requestedDate: values.date,
+        status: "pending" as const,
+      };
+      
+      const createdTask = await createTask(newTask);
+      
+      if (createdTask) {
+        toast({
+          title: "Demande envoyée",
+          description: "Votre demande d'aide a été envoyée avec succès.",
+        });
+        
+        form.reset({
+          type: "groceries", 
+          keywords: [], 
+          location: values.location, 
+          date: new Date().toISOString().split("T")[0]
+        });
+        
+        setSelectedKeywords([]);
+        navigate("/dashboard");
+      } else {
+        throw new Error("Impossible de créer la tâche");
+      }
+    } catch (error) {
+      console.error("Error creating task:", error);
+      toast({
+        title: "Erreur",
+        description: "Nous n'avons pas pu envoyer votre demande. Veuillez réessayer.",
+        variant: "destructive"
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -461,6 +461,7 @@ const TaskRequestForm = () => {
                   <Select 
                     onValueChange={field.onChange} 
                     defaultValue={field.value || defaultCity}
+                    value={field.value}
                   >
                     <FormControl>
                       <SelectTrigger className="text-lg p-4">

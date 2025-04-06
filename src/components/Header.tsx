@@ -1,70 +1,62 @@
 
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import { Button } from "@/components/ui/button";
 import { Menu } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+import { UserType } from "@/types";
+import Notifications from "./Notifications";
 
 interface HeaderProps {
-  userType?: "elderly" | "helper";
+  userType?: UserType;
+  children?: React.ReactNode;
 }
 
-export const Header = ({ userType: propsUserType }: HeaderProps) => {
+const Header = ({ userType, children }: HeaderProps) => {
+  const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { user, signOut } = useAuth();
-  
-  // Utiliser le type d'utilisateur des props si disponible, sinon utiliser celui de l'utilisateur connecté
-  const userType = propsUserType || (user?.type as "elderly" | "helper" | undefined);
-  const isLoggedIn = !!user;
   
   const handleLogout = async () => {
     await signOut();
-    navigate("/login");
+    navigate("/");
   };
-  
+
   return (
-    <header className="bg-white shadow-sm">
-      <div className="container mx-auto px-4 py-4">
-        <div className="flex justify-between items-center">
-          <Link to="/" className="flex items-center">
-            <span className={`font-semibold text-app-blue ${userType === "elderly" ? "text-2xl" : "text-xl"}`}>
+    <header className="bg-white shadow-sm border-b border-gray-200">
+      <div className="container mx-auto px-4">
+        <div className="flex items-center justify-between py-4">
+          <div className="flex items-center">
+            <Link to="/" className="text-xl md:text-2xl font-bold text-app-blue">
               Gener-Action
-            </span>
-          </Link>
+            </Link>
+          </div>
           
-          {/* Mobile menu button */}
-          <button 
-            className="md:hidden"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
-            <Menu size={24} />
-          </button>
-          
-          {/* Desktop navigation */}
-          <nav className="hidden md:flex items-center space-x-6">
-            {isLoggedIn ? (
+          <nav className="hidden md:flex items-center space-x-4">
+            <Link to="/" className="text-gray-700 hover:text-app-blue">
+              Accueil
+            </Link>
+            {user ? (
               <>
-                <Link to="/dashboard" className={`text-app-dark hover:text-app-blue transition ${userType === "elderly" ? "text-xl" : ""}`}>
+                <Link to="/dashboard" className="text-gray-700 hover:text-app-blue">
                   Tableau de bord
                 </Link>
+                <Link to="/profile" className="text-gray-700 hover:text-app-blue">
+                  Profil
+                </Link>
+                {/* Show task-specific links for each user type */}
                 {userType === "elderly" ? (
-                  <Link to="/task-request" className="text-app-dark hover:text-app-blue transition text-xl">
+                  <Link to="/task-request" className="text-gray-700 hover:text-app-blue">
                     Demander de l'aide
                   </Link>
                 ) : (
-                  <>
-                    <Link to="/accepted-tasks" className="text-app-dark hover:text-app-blue transition">
-                      Tâches acceptées
-                    </Link>
-                  </>
+                  <Link to="/accepted-tasks" className="text-gray-700 hover:text-app-blue">
+                    Mes tâches
+                  </Link>
                 )}
-                <Link to="/profile" className={`text-app-dark hover:text-app-blue transition ${userType === "elderly" ? "text-xl" : ""}`}>
-                  Profil
-                </Link>
+                {children}
                 <Button 
-                  variant="outline" 
-                  className={`ml-4 ${userType === "elderly" ? "text-lg px-6 py-5" : ""}`}
+                  variant="outline"
                   onClick={handleLogout}
                 >
                   Déconnexion
@@ -72,50 +64,58 @@ export const Header = ({ userType: propsUserType }: HeaderProps) => {
               </>
             ) : (
               <>
-                <Button 
-                  variant="outline" 
-                  className="mr-2"
-                  onClick={() => navigate("/login")}
-                >
-                  Connexion
-                </Button>
-                <Button 
-                  variant="default" 
-                  className="bg-app-blue hover:bg-app-blue/90"
-                  onClick={() => navigate("/register")}
-                >
-                  S'inscrire
-                </Button>
+                <Link to="/about" className="text-gray-700 hover:text-app-blue">
+                  À propos
+                </Link>
+                <Link to="/login">
+                  <Button variant="ghost">Connexion</Button>
+                </Link>
+                <Link to="/register">
+                  <Button>Inscription</Button>
+                </Link>
               </>
             )}
           </nav>
+          
+          <div className="md:hidden flex items-center">
+            {user && children}
+            <Button 
+              variant="ghost"
+              size="icon"
+              className="ml-2"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              <Menu />
+            </Button>
+          </div>
         </div>
         
-        {/* Mobile navigation */}
+        {/* Mobile menu */}
         {mobileMenuOpen && (
-          <nav className="md:hidden pt-4 pb-2 space-y-3">
-            {isLoggedIn ? (
+          <div className="md:hidden py-4 space-y-4 border-t">
+            <Link to="/" className="block py-2 text-gray-700">
+              Accueil
+            </Link>
+            {user ? (
               <>
-                <Link to="/dashboard" className="block py-2 text-app-dark hover:text-app-blue transition">
+                <Link to="/dashboard" className="block py-2 text-gray-700">
                   Tableau de bord
                 </Link>
+                <Link to="/profile" className="block py-2 text-gray-700">
+                  Profil
+                </Link>
                 {userType === "elderly" ? (
-                  <Link to="/task-request" className="block py-2 text-app-dark hover:text-app-blue transition">
+                  <Link to="/task-request" className="block py-2 text-gray-700">
                     Demander de l'aide
                   </Link>
                 ) : (
-                  <>
-                    <Link to="/accepted-tasks" className="block py-2 text-app-dark hover:text-app-blue transition">
-                      Tâches acceptées
-                    </Link>
-                  </>
+                  <Link to="/accepted-tasks" className="block py-2 text-gray-700">
+                    Mes tâches
+                  </Link>
                 )}
-                <Link to="/profile" className="block py-2 text-app-dark hover:text-app-blue transition">
-                  Profil
-                </Link>
-                <Button
+                <Button 
                   variant="outline"
-                  className="w-full mt-2"
+                  className="w-full"
                   onClick={handleLogout}
                 >
                   Déconnexion
@@ -123,23 +123,18 @@ export const Header = ({ userType: propsUserType }: HeaderProps) => {
               </>
             ) : (
               <>
-                <Button
-                  variant="outline"
-                  className="w-full mb-2"
-                  onClick={() => navigate("/login")}
-                >
+                <Link to="/about" className="block py-2 text-gray-700">
+                  À propos
+                </Link>
+                <Link to="/login" className="block py-2 text-gray-700">
                   Connexion
-                </Button>
-                <Button
-                  variant="default"
-                  className="w-full bg-app-blue hover:bg-app-blue/90"
-                  onClick={() => navigate("/register")}
-                >
-                  S'inscrire
-                </Button>
+                </Link>
+                <Link to="/register" className="block py-2 text-gray-700">
+                  Inscription
+                </Link>
               </>
             )}
-          </nav>
+          </div>
         )}
       </div>
     </header>

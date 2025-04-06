@@ -7,6 +7,8 @@ import { Task } from "@/types";
 import { Clock, ShoppingCart, ChefHat, Flower, Laptop, Users, MapPin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import MapDisplay from "./MapDisplay";
+import { useAuth } from "@/hooks/useAuth";
+import { updateTask, updateHelperPoints, createNotification } from "@/utils/supabaseRPC";
 
 interface TaskCardProps {
   task: Task;
@@ -16,63 +18,170 @@ interface TaskCardProps {
 
 const TaskCard = ({ task, userType, onTaskUpdate }: TaskCardProps) => {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [showMap, setShowMap] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   
-  const handleAccept = () => {
-    if (onTaskUpdate) {
-      onTaskUpdate(task.id, "assigned");
-      
-      // Get the elderly's name for the notification
-      const elderlyName = task.requestedByName || "Une personne senior";
-      
-      // Show notification toast to the helper
-      toast({
-        title: "Tâche acceptée",
-        description: `Vous avez accepté d'aider ${elderlyName} avec ${getTaskName()} à ${task.location}.`,
+  const handleAccept = async () => {
+    if (!user) return;
+    setIsProcessing(true);
+    
+    try {
+      // Update task in Supabase
+      const success = await updateTask(task.id, {
+        status: "assigned", 
+        helperAssigned: user.id
       });
       
-      // Store that a notification has been sent
-      // This could be expanded in a real app to send to the elderly as well
-      const updatedTasks = JSON.parse(localStorage.getItem("tasks") || "[]");
-      const taskIndex = updatedTasks.findIndex((t: Task) => t.id === task.id);
-      if (taskIndex !== -1) {
-        updatedTasks[taskIndex].notificationSent = true;
-        localStorage.setItem("tasks", JSON.stringify(updatedTasks));
+      if (success && onTaskUpdate) {
+        onTaskUpdate(task.id, "assigned");
+        
+        // Get the elderly's name for the notification
+        const elderlyName = task.requestedByName || "Une personne senior";
+        
+        // Create notification for the helper
+        await createNotification(
+          user.id,
+          `Vous avez accepté d'aider ${elderlyName} avec ${getTaskName()} à ${task.location}.`,
+          task.id
+        );
+        
+        // Create notification for the elderly
+        if (task.requestedBy) {
+          await createNotification(
+            task.requestedBy,
+            `${user.name || "Un jeune"} a accepté votre demande pour ${getTaskName()}.`,
+            task.id
+          );
+        }
+        
+        // Show notification toast to the helper
+        toast({
+          title: "Tâche acceptée",
+          description: `Vous avez accepté d'aider ${elderlyName} avec ${getTaskName()} à ${task.location}.`,
+        });
       }
-    }
-  };
-  
-  const handleCancel = () => {
-    if (onTaskUpdate) {
-      onTaskUpdate(task.id, "cancelled");
-      
+    } catch (error) {
+      console.error("Error accepting task:", error);
       toast({
-        title: "Tâche annulée",
-        description: "Votre demande a été annulée.",
+        title: "Erreur",
+        description: "Nous n'avons pas pu accepter cette tâche. Veuillez réessayer.",
+        variant: "destructive"
       });
+    } finally {
+      setIsProcessing(false);
     }
   };
   
-  const handleComplete = () => {
-    if (onTaskUpdate) {
-      onTaskUpdate(task.id, "completed");
+  const handleCancel = async () => {
+    if (!user) return;
+    setIsProcessing(true);
+    
+    try {
+      const success = await updateTask(task.id, { status: "cancelled" });
       
-      if (userType === "helper") {
-        const currentPoints = parseInt(localStorage.getItem("helperPoints") || "0");
-        // Award 50 points for completing a task
-        const newPoints = currentPoints + 50;
-        localStorage.setItem("helperPoints", newPoints.toString());
+      if (success && onTaskUpdate) {
+        onTaskUpdate(task.id, "cancelled");
+        
+        // Create notification for the elderly
+        await createNotification(
+          user.id,
+          `Vous avez annulé votre demande pour ${getTaskName()}.`,
+          task.id
+        );
+        
+        // Create notification for the helper if assigned
+        if (task.helperAssigned) {
+          await createNotification(
+            task.helperAssigned,
+            `Une tâche que vous aviez acceptée (${getTaskName()}) a été annulée.`,
+            task.id
+          );
+        }
         
         toast({
-          title: "Tâche terminée",
-          description: `Merci pour votre aide ! Vous avez gagné 50 points. Vous avez maintenant ${newPoints} points.`,
-        });
-      } else {
-        toast({
-          title: "Tâche terminée",
-          description: "Merci d'avoir confirmé que la tâche est terminée !",
+          title: "Tâche annulée",
+          description: "Votre demande a été annulée.",
         });
       }
+    } catch (error) {
+      console.error("Error cancelling task:", error);
+      toast({
+        title: "Erreur",
+        description: "Nous n'avons pas pu annuler cette tâche. Veuillez réessayer.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+  
+  const handleComplete = async () => {
+    if (!user) return;
+    setIsProcessing(true);
+    
+    try {
+      const success = await updateTask(task.id, { status: "completed" });
+      
+      if (success && onTaskUpdate) {
+        onTaskUpdate(task.id, "completed");
+        
+        if (userType === "helper") {
+          // Award 50 points for completing a task
+          const currentPoints = await updateHelperPoints(user.id, 50);
+          
+          // Create notification for the helper
+          await createNotification(
+            user.id,
+            `Félicitations ! Vous avez gagné 50 points pour avoir terminé la tâche "${getTaskName()}".`,
+            task.id
+          );
+          
+          // Notify the elderly
+          if (task.requestedBy) {
+            await createNotification(
+              task.requestedBy,
+              `${user.name || "Votre aidant"} a marqué la tâche "${getTaskName()}" comme terminée.`,
+              task.id
+            );
+          }
+          
+          toast({
+            title: "Tâche terminée",
+            description: `Merci pour votre aide ! Vous avez gagné 50 points.`,
+          });
+        } else {
+          // Create notification for the elderly
+          await createNotification(
+            user.id,
+            `Vous avez confirmé que la tâche "${getTaskName()}" est terminée.`,
+            task.id
+          );
+          
+          // Notify the helper
+          if (task.helperAssigned) {
+            await createNotification(
+              task.helperAssigned,
+              `${task.requestedByName || "Le senior"} a confirmé que la tâche "${getTaskName()}" est bien terminée. Merci !`,
+              task.id
+            );
+          }
+          
+          toast({
+            title: "Tâche terminée",
+            description: "Merci d'avoir confirmé que la tâche est terminée !",
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error completing task:", error);
+      toast({
+        title: "Erreur",
+        description: "Nous n'avons pas pu marquer cette tâche comme terminée. Veuillez réessayer.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsProcessing(false);
     }
   };
   
@@ -178,16 +287,28 @@ const TaskCard = ({ task, userType, onTaskUpdate }: TaskCardProps) => {
       
       <CardFooter className="flex justify-end gap-2">
         {userType === "helper" && task.status === "pending" ? (
-          <Button className="bg-app-blue hover:bg-app-blue/90" onClick={handleAccept}>
-            Accepter cette tâche
+          <Button 
+            className="bg-app-blue hover:bg-app-blue/90" 
+            onClick={handleAccept}
+            disabled={isProcessing}
+          >
+            {isProcessing ? "En cours..." : "Accepter cette tâche"}
           </Button>
         ) : userType === "elderly" && task.status === "pending" ? (
-          <Button variant="destructive" onClick={handleCancel}>
-            Annuler la demande
+          <Button 
+            variant="destructive" 
+            onClick={handleCancel}
+            disabled={isProcessing}
+          >
+            {isProcessing ? "En cours..." : "Annuler la demande"}
           </Button>
         ) : userType === "helper" && task.status === "assigned" ? (
-          <Button className="bg-green-600 hover:bg-green-700" onClick={handleComplete}>
-            Marquer comme terminée
+          <Button 
+            className="bg-green-600 hover:bg-green-700" 
+            onClick={handleComplete}
+            disabled={isProcessing}
+          >
+            {isProcessing ? "En cours..." : "Marquer comme terminée"}
           </Button>
         ) : null}
       </CardFooter>
