@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { TaskCard } from "@/components/TaskCard";
+import TaskCard from "@/components/TaskCard"; // Fixed: Changed from named import to default import
 import { useToast } from "@/hooks/use-toast";
 import { Task, UserType } from "@/types";
 import { useAuth } from "@/hooks/useAuth";
@@ -136,7 +136,7 @@ const AcceptedTasks = () => {
                 task={task}
                 userType={userType}
                 action={
-                  task.status === "in-progress" ? (
+                  task.status === "assigned" ? ( // Fixed: Changed from "in-progress" to "assigned"
                     <Button
                       onClick={() => handleMarkAsComplete(task.id)}
                       className="bg-green-600 hover:bg-green-700"
