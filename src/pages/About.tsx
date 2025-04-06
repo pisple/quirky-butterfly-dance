@@ -4,6 +4,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { getSiteContent } from "@/utils/supabaseRPC";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SiteContent } from "@/types";
 
 const About = () => {
   const [content, setContent] = useState<string>("");

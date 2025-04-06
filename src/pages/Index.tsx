@@ -46,6 +46,13 @@ const Index = () => {
             {/* Hero Section */}
             <section className="py-12 md:py-20">
               <div className="container mx-auto px-4 text-center">
+                <div className="flex justify-center mb-6">
+                  <img 
+                    src="/lovable-uploads/f1b9232c-75a0-48df-87a6-0afc8c9de81b.png" 
+                    alt="Logo GénérAction" 
+                    className="w-40 h-40 md:w-48 md:h-48"
+                  />
+                </div>
                 <h1 className="text-3xl md:text-5xl font-bold mb-6 text-app-blue">
                   Renforcer les liens intergénérationnels
                 </h1>
@@ -104,9 +111,9 @@ const Index = () => {
                     <div className="w-16 h-16 bg-app-blue/10 rounded-full flex items-center justify-center mx-auto mb-4">
                       <span className="text-2xl font-bold text-app-blue">3</span>
                     </div>
-                    <h3 className="text-xl font-semibold mb-3">Créer des liens</h3>
+                    <h3 className="text-xl font-semibold mb-3">Créez des liens</h3>
                     <p className="text-gray-600">
-                      Facilitez les tâches quotidiennes tout en créant des connexions humaines précieuses.
+                      Facilitez les tâches quotidiennes tout en créant des connexions humaines précieuses et gagnez des points.
                     </p>
                   </div>
                 </div>
@@ -123,7 +130,7 @@ const Index = () => {
                   <div className="text-center">Chargement...</div>
                 ) : (
                   <div 
-                    className="max-w-4xl mx-auto"
+                    className="max-w-4xl mx-auto prose prose-lg"
                     dangerouslySetInnerHTML={{ __html: aboutContent }}
                   />
                 )}

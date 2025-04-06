@@ -5,6 +5,13 @@ const Footer = () => {
   return (
     <footer className="bg-white border-t border-gray-200 py-8">
       <div className="container mx-auto px-4">
+        <div className="flex justify-center mb-6">
+          <img 
+            src="/lovable-uploads/f1b9232c-75a0-48df-87a6-0afc8c9de81b.png" 
+            alt="Logo GénérAction" 
+            className="w-16 h-16"
+          />
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div>
             <h3 className="text-lg font-medium mb-3">Gener-Action</h3>

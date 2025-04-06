@@ -76,6 +76,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (data) {
         setUser(data as AuthUser);
+        
+        // Si c'est un helper, créer une entrée dans helper_points
+        if (userType === 'helper') {
+          await supabase
+            .from('helper_points')
+            .upsert([
+              {
+                helper_id: data.id,
+                points: 0
+              }
+            ]);
+        }
+        
         toast({
           title: "Inscription réussie",
           description: "Bienvenue sur Gener-Action !",

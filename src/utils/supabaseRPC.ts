@@ -45,22 +45,30 @@ export async function getHelperPoints(helperId: string): Promise<number> {
   }
 }
 
-export async function updateHelperPoints(helperId: string, points: number): Promise<boolean> {
+export async function updateHelperPoints(helperId: string, pointsToAdd: number): Promise<number> {
   try {
+    // First, get current points
+    const currentPoints = await getHelperPoints(helperId);
+    const newPoints = currentPoints + pointsToAdd;
+    
+    // Update points
     const { error } = await supabase
       .from("helper_points")
-      .upsert({ helper_id: helperId, points })
-      .single();
+      .upsert({
+        helper_id: helperId,
+        points: newPoints,
+        updated_at: new Date().toISOString()
+      });
 
     if (error) {
       console.error("Error updating helper points:", error);
-      return false;
+      return currentPoints;
     }
 
-    return true;
+    return newPoints;
   } catch (error) {
     console.error(`Error in updateHelperPoints:`, error);
-    return false;
+    return 0;
   }
 }
 
@@ -175,7 +183,15 @@ export async function getTasksByUser(userId: string, type: "requestedBy" | "help
 
 export async function createTask(task: Task): Promise<Task | null> {
   try {
-    const dbTask = adaptTaskToDb(task);
+    const dbTask = {
+      type: task.type,
+      keywords: task.keywords,
+      location: task.location,
+      requested_by: task.requestedBy,
+      requested_date: task.requestedDate,
+      status: task.status,
+      helper_assigned: task.helperAssigned
+    };
     
     console.log("Creating task:", dbTask);
     
