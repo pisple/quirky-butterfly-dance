@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
@@ -8,8 +9,22 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { getSiteContent } from "@/utils/supabaseRPC";
-import { getAllTasks, getUserTasks, getAvailableTasks, getHelperPoints, updateLocalTask } from "@/utils/localTaskStorage";
+import { 
+  getSiteContent, 
+  getTasks, 
+  getTasksByUser, 
+  updateTask, 
+  getHelperPoints as getSupabaseHelperPoints, 
+  updateHelperPoints as updateSupabaseHelperPoints 
+} from "@/utils/supabaseRPC";
+import { 
+  getAllTasks as getLocalTasks, 
+  getUserTasks as getLocalUserTasks, 
+  getAvailableTasks as getLocalAvailableTasks, 
+  getHelperPoints as getLocalHelperPoints, 
+  updateLocalTask, 
+  updateHelperPoints as updateLocalHelperPoints 
+} from "@/utils/localTaskStorage";
 import Notifications from "@/components/Notifications";
 
 const Dashboard = () => {
@@ -45,32 +60,63 @@ const Dashboard = () => {
     setLoading(true);
     
     try {
-      // Load tasks
+      // Load tasks - try Supabase first, fall back to local storage
       let userTasks: Task[] = [];
       
-      if (userType === "elderly") {
-        // Senior users see their own tasks
-        userTasks = getUserTasks(user.id, "requestedBy");
-      } else {
-        // Helpers see all pending tasks plus their accepted tasks
-        const availableTasks = getAvailableTasks(); // Get all pending tasks
-        const acceptedTasks = getUserTasks(user.id, "helperAssigned"); // Get tasks assigned to this helper
+      try {
+        if (userType === "elderly") {
+          // Senior users see their own tasks
+          userTasks = await getTasksByUser(user.id, "requestedBy");
+          console.log("Supabase tasks for elderly:", userTasks);
+        } else {
+          // Helpers see all pending tasks plus their accepted tasks
+          const allTasks = await getTasks();
+          
+          // Filter tasks for helpers
+          userTasks = allTasks.filter(task => 
+            // Show all pending tasks
+            (task.status === "pending") ||
+            // Or show tasks assigned to this helper
+            (task.helperAssigned === user.id && 
+             (task.status === "assigned" || task.status === "waiting_approval"))
+          );
+          console.log("Supabase tasks for helper:", userTasks);
+        }
+      } catch (error) {
+        console.error("Error fetching tasks from Supabase, falling back to local storage:", error);
         
-        // Merge and deduplicate tasks
-        const tasksMap = new Map<string, Task>();
-        [...availableTasks, ...acceptedTasks].forEach(task => {
-          tasksMap.set(task.id, task);
-        });
-        
-        userTasks = Array.from(tasksMap.values());
+        // Fall back to local storage
+        if (userType === "elderly") {
+          // Senior users see their own tasks
+          const allLocalTasks = getLocalTasks();
+          userTasks = allLocalTasks.filter(task => task.requestedBy === user.id);
+        } else {
+          // Helpers see all pending tasks plus their accepted tasks
+          const availableTasks = getLocalAvailableTasks(); // Get all pending tasks
+          const acceptedTasks = getLocalUserTasks(user.id, "helperAssigned"); // Get tasks assigned to this helper
+          
+          // Merge and deduplicate tasks
+          const tasksMap = new Map<string, Task>();
+          [...availableTasks, ...acceptedTasks].forEach(task => {
+            tasksMap.set(task.id, task);
+          });
+          
+          userTasks = Array.from(tasksMap.values());
+        }
       }
       
       setTasks(userTasks);
       
-      // Load points for helpers
+      // Load points for helpers - try Supabase first, fall back to local storage
       if (userType === "helper" && user.id) {
-        const points = getHelperPoints(user.id);
-        setHelperPoints(points);
+        try {
+          const points = await getSupabaseHelperPoints(user.id);
+          setHelperPoints(points);
+        } catch (error) {
+          console.error("Error fetching points from Supabase, falling back to local storage:", error);
+          const points = getLocalHelperPoints(user.id);
+          setHelperPoints(points);
+        }
         
         // Get user location for proximity sorting
         if (navigator.geolocation) {
@@ -110,7 +156,7 @@ const Dashboard = () => {
     if (!user) return;
     
     try {
-      // Update in localStorage
+      // Try to update in Supabase first
       const updates: Partial<Task> = { status };
       
       // If accepting a task (helper), update the helper assigned field
@@ -118,7 +164,19 @@ const Dashboard = () => {
         updates.helperAssigned = user.id;
       }
       
-      const success = updateLocalTask(taskId, updates);
+      let success = false;
+      
+      try {
+        success = await updateTask(taskId, updates);
+      } catch (error) {
+        console.error("Error updating task in Supabase:", error);
+      }
+      
+      // Fall back to local storage if Supabase update fails
+      if (!success) {
+        console.log("Falling back to local storage for task update");
+        success = updateLocalTask(taskId, updates);
+      }
       
       if (success) {
         // Update local state
@@ -129,8 +187,15 @@ const Dashboard = () => {
         
         // Refresh points if task completed by helper
         if (status === "completed" && userType === "helper" && user.id) {
-          const points = getHelperPoints(user.id);
-          setHelperPoints(points);
+          try {
+            const points = await updateSupabaseHelperPoints(user.id, 50);
+            setHelperPoints(points);
+          } catch (error) {
+            console.error("Error updating points in Supabase:", error);
+            // Fall back to local storage
+            const points = updateLocalHelperPoints(user.id, 50);
+            setHelperPoints(points);
+          }
         }
 
         // Show success toast

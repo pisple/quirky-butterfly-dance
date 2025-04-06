@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -6,7 +7,7 @@ import { Task, UserType } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
-import { getUserTasks, updateLocalTask, updateHelperPoints, getAllTasks } from "@/utils/localTaskStorage";
+import { getUserTasks as getLocalTasks, updateLocalTask, updateHelperPoints as updateLocalHelperPoints, getAllTasks as getLocalAllTasks } from "@/utils/localTaskStorage";
 import { getTasks, getTasksByUser, updateTask, updateHelperPoints as updateSupabaseHelperPoints } from "@/utils/supabaseRPC";
 
 const AcceptedTasks = () => {
@@ -44,43 +45,44 @@ const AcceptedTasks = () => {
       // First try to get tasks from Supabase
       let loadedTasks: Task[] = [];
       
-      if (userType === "helper") {
-        // For helpers, load all pending tasks (created by seniors) and their assigned tasks
-        const allTasks = await getTasks().catch(() => []);
-        
-        if (allTasks.length > 0) {
-          // Filter tasks for helpers: show pending tasks and tasks assigned to them
-          loadedTasks = allTasks.filter(task => 
-            // Show all pending tasks (available for help)
-            (task.status === "pending") ||
-            // Or show tasks assigned to this helper or waiting approval
-            (task.helperAssigned === user.id && 
-             (task.status === "assigned" || task.status === "waiting_approval"))
-          );
+      try {
+        if (userType === "helper") {
+          // For helpers, load all pending tasks (created by seniors) and their assigned tasks
+          const allTasks = await getTasks();
+          
+          if (allTasks.length > 0) {
+            // Filter tasks for helpers: show pending tasks and tasks assigned to them
+            loadedTasks = allTasks.filter(task => 
+              // Show all pending tasks (available for help)
+              (task.status === "pending") ||
+              // Or show tasks assigned to this helper or waiting approval
+              (task.helperAssigned === user.id && 
+               (task.status === "assigned" || task.status === "waiting_approval"))
+            );
+          }
+        } else {
+          // For elderly, show all their tasks including those waiting for approval
+          console.log("Attempting to fetch tasks for elderly user:", user.id);
+          const userTasks = await getTasksByUser(user.id, "requestedBy");
+          
+          if (userTasks.length > 0) {
+            console.log("Tasks fetched from Supabase for elderly:", userTasks);
+            loadedTasks = userTasks;
+          }
         }
-      } else {
-        // For elderly, show all their tasks including those waiting for approval
-        console.log("Attempting to fetch tasks for elderly user:", user.id);
-        const userTasks = await getTasksByUser(user.id, "requestedBy").catch(() => []);
-        
-        if (userTasks.length > 0) {
-          console.log("Tasks fetched from Supabase for elderly:", userTasks);
-          loadedTasks = userTasks;
-        }
-      }
-      
-      // If no tasks loaded from Supabase, fall back to local storage
-      if (loadedTasks.length === 0) {
+      } catch (error) {
+        console.error("Error fetching tasks from Supabase:", error);
         console.log("Falling back to local storage for tasks");
         
+        // If Supabase fails, fall back to local storage
         if (userType === "elderly") {
           // For seniors, get all their tasks including those waiting for approval
-          const allTasks = getAllTasks();
+          const allTasks = getLocalAllTasks();
           loadedTasks = allTasks.filter(task => task.requestedBy === user.id);
           console.log("Loaded tasks from local storage for elderly:", loadedTasks);
         } else {
           // For helpers, get all tasks (including those created by seniors)
-          const allTasks = getAllTasks();
+          const allTasks = getLocalAllTasks();
           
           // Show all pending tasks (available for help) and tasks assigned to this helper
           loadedTasks = allTasks.filter(task => 
@@ -113,59 +115,73 @@ const AcceptedTasks = () => {
     
     try {
       // Try to update in Supabase first
-      const success = await updateTask(taskId, { status });
+      let success = false;
+      
+      try {
+        success = await updateTask(taskId, { status });
+      } catch (error) {
+        console.error("Error updating task in Supabase:", error);
+      }
       
       if (!success) {
         // Fall back to local storage if Supabase update fails
         console.log("Falling back to local storage for task update");
-        updateLocalTask(taskId, { status });
+        success = updateLocalTask(taskId, { status });
       }
       
-      // Update local state
-      const updatedTasks = tasks.map(task => 
-        task.id === taskId ? { ...task, status } : task
-      );
-      
-      setTasks(updatedTasks);
-      
-      if (status === "completed") {
-        // Add 50 points for the helper when a task is completed
-        if (userType === "helper" && user.id) {
-          let newPoints = 0;
-          
-          try {
-            // Try Supabase first
-            newPoints = await updateSupabaseHelperPoints(user.id, 50);
-          } catch (error) {
-            // Fall back to local storage
-            console.log("Falling back to local storage for helper points");
-            newPoints = updateHelperPoints(user.id, 50);
+      if (success) {
+        // Update local state
+        const updatedTasks = tasks.map(task => 
+          task.id === taskId ? { ...task, status } : task
+        );
+        
+        setTasks(updatedTasks);
+        
+        if (status === "completed") {
+          // Add 50 points for the helper when a task is completed
+          if (userType === "helper" && user.id) {
+            let newPoints = 0;
+            
+            try {
+              // Try Supabase first
+              newPoints = await updateSupabaseHelperPoints(user.id, 50);
+            } catch (error) {
+              // Fall back to local storage
+              console.log("Falling back to local storage for helper points");
+              newPoints = updateLocalHelperPoints(user.id, 50);
+            }
+            
+            toast({
+              title: "Tâche terminée",
+              description: `La tâche a été marquée comme terminée avec succès. Vous avez gagné 50 points! Vous avez maintenant ${newPoints} points au total.`
+            });
+          } else {
+            toast({
+              title: "Tâche terminée",
+              description: "La tâche a été marquée comme terminée avec succès."
+            });
           }
-          
+        } else if (status === "cancelled") {
           toast({
-            title: "Tâche terminée",
-            description: `La tâche a été marquée comme terminée avec succès. Vous avez gagné 50 points! Vous avez maintenant ${newPoints} points au total.`
+            title: "Tâche annulée",
+            description: "La tâche a été annulée avec succès."
           });
-        } else {
+        } else if (status === "waiting_approval") {
           toast({
-            title: "Tâche terminée",
-            description: "La tâche a été marquée comme terminée avec succès."
+            title: "Proposition envoyée",
+            description: "Votre proposition d'aide a été envoyée au senior."
+          });
+        } else if (status === "assigned") {
+          toast({
+            title: "Aide confirmée",
+            description: "Le senior a confirmé votre aide."
           });
         }
-      } else if (status === "cancelled") {
+      } else {
         toast({
-          title: "Tâche annulée",
-          description: "La tâche a été annulée avec succès."
-        });
-      } else if (status === "waiting_approval") {
-        toast({
-          title: "Proposition envoyée",
-          description: "Votre proposition d'aide a été envoyée au senior."
-        });
-      } else if (status === "assigned") {
-        toast({
-          title: "Aide confirmée",
-          description: "Le senior a confirmé votre aide."
+          title: "Erreur",
+          description: "Impossible de mettre à jour la tâche. Veuillez réessayer.",
+          variant: "destructive"
         });
       }
     } catch (error) {

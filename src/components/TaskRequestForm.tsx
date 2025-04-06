@@ -31,6 +31,7 @@ import { createLocalTask } from "@/utils/localTaskStorage";
 
 // Importation des villes belges depuis un fichier séparé
 import { BELGIAN_CITIES } from "@/data/belgian-cities";
+import { createTask } from "@/utils/supabaseRPC";
 
 const taskRequestSchema = z.object({
   type: z.enum(["groceries", "cooking", "gardening", "technology", "accompaniment"], { 
@@ -314,14 +315,15 @@ const TaskRequestForm = () => {
         keywords: values.keywords,
         location: values.location,
         requestedBy: user.id,
+        requestedByName: user.name || "",
         requestedDate: values.date,
         status: "pending" as const,
       };
       
-      console.log("Submitting task:", newTask);
+      console.log("Submitting task to Supabase:", newTask);
       
-      // Use local storage instead of Supabase
-      const createdTask = createLocalTask(newTask);
+      // Use Supabase instead of local storage
+      const createdTask = await createTask(newTask);
       
       if (createdTask) {
         toast({
@@ -339,7 +341,28 @@ const TaskRequestForm = () => {
         setSelectedKeywords([]);
         navigate("/dashboard");
       } else {
-        throw new Error("Impossible de créer la tâche");
+        // Fallback to local storage if Supabase fails
+        console.log("Falling back to local storage for task creation");
+        const localTask = createLocalTask(newTask);
+        
+        if (localTask) {
+          toast({
+            title: "Demande envoyée (locale)",
+            description: "Votre demande a été enregistrée localement.",
+          });
+          
+          form.reset({
+            type: "groceries", 
+            keywords: [], 
+            location: values.location, 
+            date: new Date().toISOString().split("T")[0]
+          });
+          
+          setSelectedKeywords([]);
+          navigate("/dashboard");
+        } else {
+          throw new Error("Impossible de créer la tâche");
+        }
       }
     } catch (error) {
       console.error("Error creating task:", error);

@@ -188,12 +188,13 @@ export async function createTask(task: Task): Promise<Task | null> {
       keywords: task.keywords,
       location: task.location,
       requested_by: task.requestedBy,
+      requested_by_name: task.requestedByName || "",
       requested_date: task.requestedDate,
       status: task.status,
       helper_assigned: task.helperAssigned
     };
     
-    console.log("Creating task:", dbTask);
+    console.log("Creating task in Supabase:", dbTask);
     
     const { data, error } = await supabase
       .from("tasks")
@@ -224,8 +225,11 @@ export async function updateTask(taskId: string, updates: Partial<Task>): Promis
     if (updates.location !== undefined) dbUpdates.location = updates.location;
     if (updates.requestedDate !== undefined) dbUpdates.requested_date = updates.requestedDate;
     if (updates.type !== undefined) dbUpdates.type = updates.type;
+    if (updates.requestedByName !== undefined) dbUpdates.requested_by_name = updates.requestedByName;
     
     dbUpdates.updated_at = new Date().toISOString();
+
+    console.log("Updating task in Supabase:", taskId, dbUpdates);
 
     const { error } = await supabase
       .from("tasks")
