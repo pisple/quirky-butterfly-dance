@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -39,28 +38,23 @@ const AcceptedTasks = () => {
     if (!user) return;
     
     if (userType === "elderly") {
-      // For elderly, get all of their tasks including those waiting for approval
+      // Pour les seniors, récupérer toutes leurs tâches, y compris celles en attente d'approbation
       const allTasks = getAllTasks();
       const userTasks = allTasks.filter(task => 
-        task.requestedBy === user.id || 
-        (task.status === "waiting_approval" && task.requestedBy === user.id)
+        task.requestedBy === user.id
       );
       setTasks(userTasks);
     } else {
-      // For helpers, load all available pending tasks plus their assigned tasks
+      // Pour les helpers, récupérer leurs tâches en attente d'approbation et assignées
       const allTasks = getAllTasks();
-      const pendingTasks = allTasks.filter(task => task.status === "pending");
-      const assignedToMeTasks = getUserTasks(user.id, "helperAssigned");
       
-      // Combine all tasks without duplicates
-      const combinedTasks = [...pendingTasks];
-      assignedToMeTasks.forEach(task => {
-        if (!combinedTasks.some(t => t.id === task.id)) {
-          combinedTasks.push(task);
-        }
-      });
+      // Filtrer pour obtenir les tâches assignées à cet helper et celles en attente d'approbation
+      const helperTasks = allTasks.filter(task => 
+        (task.helperAssigned === user.id && 
+         (task.status === "assigned" || task.status === "waiting_approval"))
+      );
       
-      setTasks(combinedTasks);
+      setTasks(helperTasks);
     }
   };
 
