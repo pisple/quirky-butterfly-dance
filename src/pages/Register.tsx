@@ -65,6 +65,10 @@ const Register = () => {
     }
   };
   
+  const handleItsmeRegistration = () => {
+    alert("L'inscription via itsme n'est pas encore disponible.");
+  };
+  
   return (
     <div className={`flex flex-col min-h-screen ${userType === "elderly" ? "elderly-mode" : ""}`}>
       <Header />
@@ -101,6 +105,36 @@ const Register = () => {
                     {userType === "helper" && <span className="text-xl mr-2">🧑</span>}
                     Jeune aidant
                   </Button>
+                </div>
+              </div>
+              
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t"></span>
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">Inscription rapide</span>
+                </div>
+              </div>
+              
+              <Button 
+                type="button"
+                variant="outline"
+                className={`w-full mb-6 border-2 border-[#e10f20] ${userType === "elderly" ? "text-lg py-6" : ""}`}
+                onClick={handleItsmeRegistration}
+              >
+                <div className="flex items-center justify-center">
+                  <div className="bg-[#e10f20] text-white font-semibold px-2 py-1 rounded mr-2">itsme</div>
+                  <span>S'inscrire avec itsme</span>
+                </div>
+              </Button>
+              
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t"></span>
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">Ou</span>
                 </div>
               </div>
               
