@@ -13,11 +13,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { format } from "date-fns";
 import { ChevronRight, Calendar as CalendarIcon } from "lucide-react";
 import { TaskType, KeywordOption, BelgianCity } from "@/types";
-import belgianCities from "@/data/belgian-cities";
+import { BELGIAN_CITIES } from "@/data/belgian-cities";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { createTask as createSupabaseTask } from "@/utils/supabaseRPC";
-import { createTask as createLocalTask } from "@/utils/localTaskStorage";
+import * as localTaskStorage from "@/utils/localTaskStorage";
 
 // Keywords for different task types
 const taskKeywords: Record<TaskType, KeywordOption[]> = {
@@ -56,7 +56,7 @@ const taskKeywords: Record<TaskType, KeywordOption[]> = {
 };
 
 // Generate city options
-const cityOptions: BelgianCity[] = belgianCities;
+const cityOptions: BelgianCity[] = BELGIAN_CITIES;
 
 const TaskRequestForm = () => {
   const { toast } = useToast();
@@ -191,7 +191,7 @@ const TaskRequestForm = () => {
       }
       
       // If Supabase fails, create in local storage
-      const localTaskId = createLocalTask(newTask);
+      const localTaskId = localTaskStorage.createLocalTask(newTask);
       if (localTaskId) {
         console.log("Task created in local storage with ID:", localTaskId);
         toast({
@@ -259,7 +259,6 @@ const TaskRequestForm = () => {
                 variant={taskType === "accompaniment" ? "default" : "outline"}
                 className={taskType === "accompaniment" ? "bg-app-blue" : ""}
                 onClick={() => setTaskType("accompaniment")}
-                className="col-span-2 md:col-span-1"
               >
                 Accompagnement
               </Button>

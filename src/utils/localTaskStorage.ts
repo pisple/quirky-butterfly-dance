@@ -1,3 +1,4 @@
+
 import { v4 as uuidv4 } from 'uuid';
 import { Task } from '@/types';
 
@@ -27,8 +28,8 @@ export const getAvailableTasks = (): Task[] => {
   return allTasks.filter(task => task.status === "pending");
 };
 
-// Update createLocalTask to match our interface
-export const createLocalTask = (task: Omit<Task, "id">): Task => {
+// Create a new task in local storage
+export const createLocalTask = (task: Omit<Task, "id">): string => {
   const allTasks = getAllTasks();
   
   const newTask: Task = {
@@ -39,7 +40,7 @@ export const createLocalTask = (task: Omit<Task, "id">): Task => {
   allTasks.push(newTask);
   localStorage.setItem("tasks", JSON.stringify(allTasks));
   
-  return newTask;
+  return newTask.id;
 };
 
 // Mettre à jour une tâche existante
