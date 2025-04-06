@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -46,7 +45,7 @@ const AcceptedTasks = () => {
     setTasks(userTasks);
   };
 
-  const handleTaskUpdate = (taskId: string, status: "pending" | "assigned" | "completed" | "cancelled") => {
+  const handleTaskUpdate = (taskId: string, status: "pending" | "waiting_approval" | "assigned" | "completed" | "cancelled") => {
     if (!user) return;
     
     const success = updateLocalTask(taskId, { status });
@@ -78,6 +77,16 @@ const AcceptedTasks = () => {
         toast({
           title: "Tâche annulée",
           description: "La tâche a été annulée avec succès."
+        });
+      } else if (status === "waiting_approval") {
+        toast({
+          title: "Proposition envoyée",
+          description: "Votre proposition d'aide a été envoyée au senior."
+        });
+      } else if (status === "assigned") {
+        toast({
+          title: "Aide confirmée",
+          description: "Le senior a confirmé votre aide."
         });
       }
     }

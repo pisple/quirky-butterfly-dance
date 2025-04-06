@@ -11,7 +11,7 @@ export interface Task {
   requestedBy: string;
   requestedByName?: string;
   requestedDate: string;
-  status: "pending" | "assigned" | "completed" | "cancelled";
+  status: "pending" | "waiting_approval" | "assigned" | "completed" | "cancelled";
   helperAssigned?: string;
   notificationSent?: boolean;
 }

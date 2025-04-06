@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +12,7 @@ import { updateTask, updateHelperPoints, createNotification } from "@/utils/supa
 interface TaskCardProps {
   task: Task;
   userType: "elderly" | "helper";
-  onTaskUpdate?: (taskId: string, status: "pending" | "assigned" | "completed" | "cancelled") => void;
+  onTaskUpdate?: (taskId: string, status: "pending" | "waiting_approval" | "assigned" | "completed" | "cancelled") => void;
 }
 
 const TaskCard = ({ task, userType, onTaskUpdate }: TaskCardProps) => {
@@ -27,45 +26,125 @@ const TaskCard = ({ task, userType, onTaskUpdate }: TaskCardProps) => {
     setIsProcessing(true);
     
     try {
-      // Update task in Supabase
       const success = await updateTask(task.id, {
-        status: "assigned", 
+        status: "waiting_approval", 
         helperAssigned: user.id
       });
       
       if (success && onTaskUpdate) {
-        onTaskUpdate(task.id, "assigned");
+        onTaskUpdate(task.id, "waiting_approval");
         
-        // Get the elderly's name for the notification
         const elderlyName = task.requestedByName || "Une personne senior";
         
-        // Create notification for the helper
         await createNotification(
           user.id,
-          `Vous avez accepté d'aider ${elderlyName} avec ${getTaskName()} à ${task.location}.`,
+          `Vous avez proposé votre aide à ${elderlyName} pour ${getTaskName()} à ${task.location}. Attendez la confirmation.`,
           task.id
         );
         
-        // Create notification for the elderly
         if (task.requestedBy) {
           await createNotification(
             task.requestedBy,
-            `${user.name || "Un jeune"} a accepté votre demande pour ${getTaskName()}.`,
+            `${user.name || "Un jeune"} a proposé son aide pour ${getTaskName()}. Veuillez confirmer cette demande.`,
             task.id
           );
         }
         
-        // Show notification toast to the helper
         toast({
-          title: "Tâche acceptée",
-          description: `Vous avez accepté d'aider ${elderlyName} avec ${getTaskName()} à ${task.location}.`,
+          title: "Demande envoyée",
+          description: `Vous avez proposé votre aide à ${elderlyName}. Attendez la confirmation.`,
         });
       }
     } catch (error) {
       console.error("Error accepting task:", error);
       toast({
         title: "Erreur",
-        description: "Nous n'avons pas pu accepter cette tâche. Veuillez réessayer.",
+        description: "Nous n'avons pas pu traiter votre demande. Veuillez réessayer.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+  
+  const handleConfirmHelper = async () => {
+    if (!user) return;
+    setIsProcessing(true);
+    
+    try {
+      const success = await updateTask(task.id, { status: "assigned" });
+      
+      if (success && onTaskUpdate) {
+        onTaskUpdate(task.id, "assigned");
+        
+        if (task.helperAssigned) {
+          await createNotification(
+            task.helperAssigned,
+            `${task.requestedByName || "Le senior"} a confirmé votre aide pour ${getTaskName()}.`,
+            task.id
+          );
+        }
+        
+        await createNotification(
+          user.id,
+          `Vous avez confirmé ${task.helperAssigned ? "l'aide proposée" : "l'aidant"} pour ${getTaskName()}.`,
+          task.id
+        );
+        
+        toast({
+          title: "Aide confirmée",
+          description: "Vous avez accepté l'aide proposée. L'aidant a été notifié.",
+        });
+      }
+    } catch (error) {
+      console.error("Error confirming helper:", error);
+      toast({
+        title: "Erreur",
+        description: "Nous n'avons pas pu confirmer l'aide. Veuillez réessayer.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+  
+  const handleDeclineHelper = async () => {
+    if (!user) return;
+    setIsProcessing(true);
+    
+    try {
+      const success = await updateTask(task.id, { 
+        status: "pending",
+        helperAssigned: undefined
+      });
+      
+      if (success && onTaskUpdate) {
+        onTaskUpdate(task.id, "pending");
+        
+        if (task.helperAssigned) {
+          await createNotification(
+            task.helperAssigned,
+            `${task.requestedByName || "Le senior"} a décliné votre proposition d'aide pour ${getTaskName()}.`,
+            task.id
+          );
+        }
+        
+        await createNotification(
+          user.id,
+          `Vous avez décliné la proposition d'aide pour ${getTaskName()}.`,
+          task.id
+        );
+        
+        toast({
+          title: "Aide déclinée",
+          description: "Vous avez décliné cette proposition d'aide.",
+        });
+      }
+    } catch (error) {
+      console.error("Error declining helper:", error);
+      toast({
+        title: "Erreur",
+        description: "Nous n'avons pas pu décliner l'aide. Veuillez réessayer.",
         variant: "destructive"
       });
     } finally {
@@ -83,14 +162,12 @@ const TaskCard = ({ task, userType, onTaskUpdate }: TaskCardProps) => {
       if (success && onTaskUpdate) {
         onTaskUpdate(task.id, "cancelled");
         
-        // Create notification for the elderly
         await createNotification(
           user.id,
           `Vous avez annulé votre demande pour ${getTaskName()}.`,
           task.id
         );
         
-        // Create notification for the helper if assigned
         if (task.helperAssigned) {
           await createNotification(
             task.helperAssigned,
@@ -127,17 +204,14 @@ const TaskCard = ({ task, userType, onTaskUpdate }: TaskCardProps) => {
         onTaskUpdate(task.id, "completed");
         
         if (userType === "helper") {
-          // Award 50 points for completing a task
           const currentPoints = await updateHelperPoints(user.id, 50);
           
-          // Create notification for the helper
           await createNotification(
             user.id,
             `Félicitations ! Vous avez gagné 50 points pour avoir terminé la tâche "${getTaskName()}".`,
             task.id
           );
           
-          // Notify the elderly
           if (task.requestedBy) {
             await createNotification(
               task.requestedBy,
@@ -151,14 +225,12 @@ const TaskCard = ({ task, userType, onTaskUpdate }: TaskCardProps) => {
             description: `Merci pour votre aide ! Vous avez gagné 50 points.`,
           });
         } else {
-          // Create notification for the elderly
           await createNotification(
             user.id,
             `Vous avez confirmé que la tâche "${getTaskName()}" est terminée.`,
             task.id
           );
           
-          // Notify the helper
           if (task.helperAssigned) {
             await createNotification(
               task.helperAssigned,
@@ -188,6 +260,7 @@ const TaskCard = ({ task, userType, onTaskUpdate }: TaskCardProps) => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "pending": return "bg-yellow-100 text-yellow-800";
+      case "waiting_approval": return "bg-yellow-100 text-yellow-800";
       case "assigned": return "bg-blue-100 text-blue-800";
       case "completed": return "bg-green-100 text-green-800";
       case "cancelled": return "bg-gray-100 text-gray-800";
@@ -198,6 +271,7 @@ const TaskCard = ({ task, userType, onTaskUpdate }: TaskCardProps) => {
   const getStatusText = (status: string) => {
     switch (status) {
       case "pending": return "En attente";
+      case "waiting_approval": return "En attente de confirmation";
       case "assigned": return "Assignée";
       case "completed": return "Terminée";
       case "cancelled": return "Annulée";
@@ -292,8 +366,26 @@ const TaskCard = ({ task, userType, onTaskUpdate }: TaskCardProps) => {
             onClick={handleAccept}
             disabled={isProcessing}
           >
-            {isProcessing ? "En cours..." : "Accepter cette tâche"}
+            {isProcessing ? "En cours..." : "Proposer mon aide"}
           </Button>
+        ) : userType === "elderly" && task.status === "waiting_approval" ? (
+          <>
+            <Button 
+              variant="outline" 
+              onClick={handleDeclineHelper}
+              disabled={isProcessing}
+              className="border-red-500 text-red-500 hover:bg-red-50"
+            >
+              {isProcessing ? "En cours..." : "Décliner"}
+            </Button>
+            <Button 
+              className="bg-green-600 hover:bg-green-700" 
+              onClick={handleConfirmHelper}
+              disabled={isProcessing}
+            >
+              {isProcessing ? "En cours..." : "Confirmer l'aidant"}
+            </Button>
+          </>
         ) : userType === "elderly" && task.status === "pending" ? (
           <Button 
             variant="destructive" 
@@ -302,6 +394,8 @@ const TaskCard = ({ task, userType, onTaskUpdate }: TaskCardProps) => {
           >
             {isProcessing ? "En cours..." : "Annuler la demande"}
           </Button>
+        ) : userType === "helper" && task.status === "waiting_approval" ? (
+          <p className="text-amber-600 font-medium">En attente de confirmation par le senior</p>
         ) : userType === "helper" && task.status === "assigned" ? (
           <Button 
             className="bg-green-600 hover:bg-green-700" 

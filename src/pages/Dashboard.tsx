@@ -107,15 +107,15 @@ const Dashboard = () => {
     }
   };
 
-  const handleTaskUpdate = async (taskId: string, status: "pending" | "assigned" | "completed" | "cancelled") => {
+  const handleTaskUpdate = async (taskId: string, status: "pending" | "waiting_approval" | "assigned" | "completed" | "cancelled") => {
     if (!user) return;
     
     try {
       // Update in localStorage
       const updates: Partial<Task> = { status };
       
-      // If assigning to a helper, update the helper assigned field
-      if (status === "assigned" && userType === "helper") {
+      // If accepting a task (helper), update the helper assigned field
+      if (status === "waiting_approval" && userType === "helper") {
         updates.helperAssigned = user.id;
       }
       
@@ -136,8 +136,10 @@ const Dashboard = () => {
 
         // Show success toast
         let message = "";
-        if (status === "assigned") {
-          message = "Tâche acceptée avec succès.";
+        if (status === "waiting_approval") {
+          message = "Proposition d'aide envoyée avec succès.";
+        } else if (status === "assigned") {
+          message = "Aide confirmée avec succès.";
         } else if (status === "completed") {
           message = "Tâche marquée comme terminée.";
         } else if (status === "cancelled") {

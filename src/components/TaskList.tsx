@@ -42,8 +42,9 @@ const TaskList = ({ tasks, userType, onTaskUpdate }: TaskListProps) => {
     ? relevantTasks.filter(task => task.status !== "cancelled" && task.status !== "completed")
     : relevantTasks;
   
-  // Filtrer selon si la tâche est assignée ou non
+  // Filtrer selon le statut de la tâche
   const pendingTasks = availableTasks.filter(task => task.status === "pending");
+  const waitingApprovalTasks = availableTasks.filter(task => task.status === "waiting_approval");
   const assignedTasks = availableTasks.filter(task => task.status === "assigned");
   
   // Fonction pour trier les tâches par proximité
@@ -107,9 +108,13 @@ const TaskList = ({ tasks, userType, onTaskUpdate }: TaskListProps) => {
   };
   
   // Appliquer le filtre (type de tâche) sur les tâches selon l'onglet actif
-  const filteredAvailableTasks = filter 
+  const filteredPendingTasks = filter 
     ? pendingTasks.filter(task => task.type === filter) 
     : pendingTasks;
+    
+  const filteredWaitingApprovalTasks = filter 
+    ? waitingApprovalTasks.filter(task => task.type === filter) 
+    : waitingApprovalTasks;
     
   const filteredAssignedTasks = filter 
     ? assignedTasks.filter(task => task.type === filter) 
@@ -119,13 +124,20 @@ const TaskList = ({ tasks, userType, onTaskUpdate }: TaskListProps) => {
   let displayedTasks;
   
   if (userType === "elderly") {
-    // Pour les seniors, afficher toutes leurs tâches actives (pending + assigned)
+    // Pour les seniors, afficher toutes leurs tâches actives (pending + waiting_approval + assigned)
     displayedTasks = filter 
       ? availableTasks.filter(task => task.type === filter)
       : availableTasks;
   } else {
     // Pour les helpers, respecter le système d'onglets et appliquer le tri par proximité
-    const tasksBeforeSorting = activeTab === "available" ? filteredAvailableTasks : filteredAssignedTasks;
+    let tasksBeforeSorting;
+    if (activeTab === "available") {
+      tasksBeforeSorting = filteredPendingTasks;
+    } else if (activeTab === "waiting") {
+      tasksBeforeSorting = filteredWaitingApprovalTasks;
+    } else {
+      tasksBeforeSorting = filteredAssignedTasks;
+    }
     displayedTasks = sortTasksByProximity(tasksBeforeSorting);
   }
   
@@ -143,8 +155,9 @@ const TaskList = ({ tasks, userType, onTaskUpdate }: TaskListProps) => {
     <div className="w-full">
       {userType === "helper" && (
         <Tabs defaultValue="available" className="w-full mb-6" onValueChange={(value) => setActiveTab(value)}>
-          <TabsList className="grid w-full grid-cols-2 mb-4">
+          <TabsList className="grid w-full grid-cols-3 mb-4">
             <TabsTrigger value="available">Tâches disponibles</TabsTrigger>
+            <TabsTrigger value="waiting">En attente</TabsTrigger>
             <TabsTrigger value="accepted">Tâches acceptées</TabsTrigger>
           </TabsList>
         </Tabs>
@@ -205,7 +218,9 @@ const TaskList = ({ tasks, userType, onTaskUpdate }: TaskListProps) => {
             ? "Vous n'avez aucune demande d'aide active."
             : activeTab === "available" 
               ? "Aucune tâche disponible ne correspond à votre filtre."
-              : "Aucune tâche acceptée ne correspond à votre filtre."}
+              : activeTab === "waiting"
+                ? "Aucune tâche en attente de confirmation."
+                : "Aucune tâche acceptée ne correspond à votre filtre."}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
