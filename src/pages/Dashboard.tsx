@@ -1,151 +1,126 @@
 
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import TaskList from "@/components/TaskList";
 import { Task, UserType } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/useAuth";
-import { getTasks, getTasksByUser, updateTask, getHelperPoints } from "@/utils/supabaseRPC";
-import Notifications from "@/components/Notifications";
 
 const Dashboard = () => {
+  const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user } = useAuth();
   const [userType, setUserType] = useState<UserType>("elderly");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [helperPoints, setHelperPoints] = useState<number>(0);
-  const [loading, setLoading] = useState(true);
   
   useEffect(() => {
-    if (!user) {
-      toast({
-        title: "Veuillez vous connecter",
-        description: "Vous devez être connecté pour accéder à cette page.",
-      });
-      navigate("/login");
-      return;
-    }
-
-    // Set user type
-    if (user.type) {
-      setUserType(user.type as UserType);
-    }
-    
-    loadData();
-  }, [user, navigate, toast]);
-
-  const loadData = async () => {
-    if (!user) return;
-    
-    setLoading(true);
-    
-    try {
-      // Load tasks
-      let userTasks: Task[] = [];
-      
-      if (userType === "elderly") {
-        // Senior users see their own tasks
-        userTasks = await getTasksByUser(user.id, "requestedBy");
+    // Get user type from location state or default to elderly
+    const stateUserType = location.state?.userType as UserType;
+    if (stateUserType) {
+      setUserType(stateUserType);
+      localStorage.setItem("userType", stateUserType);
+    } else {
+      // Try to get from localStorage
+      const savedUserType = localStorage.getItem("userType");
+      if (savedUserType === "elderly" || savedUserType === "helper") {
+        setUserType(savedUserType as UserType);
       } else {
-        // Helpers see all tasks plus their accepted tasks
-        const allTasks = await getTasks();
-        const acceptedTasks = await getTasksByUser(user.id, "helperAssigned");
-        
-        // Merge and deduplicate tasks
-        const tasksMap = new Map<string, Task>();
-        [...allTasks, ...acceptedTasks].forEach(task => {
-          tasksMap.set(task.id, task);
+        // If no user type is found, show welcome message
+        toast({
+          title: "Bienvenue sur Gener-Action",
+          description: "Veuillez vous connecter pour commencer.",
         });
-        
-        userTasks = Array.from(tasksMap.values());
+        navigate("/login");
       }
-      
-      setTasks(userTasks);
-      
-      // Load points for helpers
-      if (userType === "helper") {
-        const points = await getHelperPoints(user.id);
-        setHelperPoints(points);
-        
-        // Get user location for proximity sorting
-        if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(
-            (position) => {
-              const coordinates = {
-                latitude: position.coords.latitude,
-                longitude: position.coords.longitude,
-              };
-              localStorage.setItem("userLocation", JSON.stringify(coordinates));
-            },
-            (error) => {
-              console.error("Error getting user location:", error);
-              // Use a default location for Belgium if geolocation fails
-              const defaultLocation = {
-                latitude: 50.8503, // Brussels latitude
-                longitude: 4.3517, // Brussels longitude
-              };
-              localStorage.setItem("userLocation", JSON.stringify(defaultLocation));
-            }
-          );
-        }
-      }
-    } catch (error) {
-      console.error("Error loading dashboard data:", error);
-      toast({
-        title: "Erreur",
-        description: "Nous n'avons pas pu charger vos données. Veuillez réessayer.",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
     }
-  };
-
-  const handleTaskUpdate = async (taskId: string, status: "pending" | "assigned" | "completed" | "cancelled") => {
-    if (!user) return;
     
-    try {
-      // Update in Supabase
-      const updates: Partial<Task> = { status };
-      
-      // If assigning to a helper, update the helper assigned field
-      if (status === "assigned" && userType === "helper") {
-        updates.helperAssigned = user.id;
+    // Load tasks from localStorage
+    const loadTasks = () => {
+      const storedTasks = localStorage.getItem("tasks");
+      if (storedTasks) {
+        setTasks(JSON.parse(storedTasks));
       }
+    };
+    
+    // Load points for helpers
+    if (userType === "helper") {
+      const points = parseInt(localStorage.getItem("helperPoints") || "0");
+      setHelperPoints(points);
       
-      const success = await updateTask(taskId, updates);
-      
-      if (success) {
-        // Update local state
-        const updatedTasks = tasks.map(task => 
-          task.id === taskId ? { ...task, ...updates } : task
+      // Get user location for proximity sorting
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const coordinates = {
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+            };
+            localStorage.setItem("userLocation", JSON.stringify(coordinates));
+          },
+          (error) => {
+            console.error("Error getting user location:", error);
+            // Use a default location for Belgium if geolocation fails
+            const defaultLocation = {
+              latitude: 50.8503, // Brussels latitude
+              longitude: 4.3517, // Brussels longitude
+            };
+            localStorage.setItem("userLocation", JSON.stringify(defaultLocation));
+          }
         );
-        setTasks(updatedTasks);
-        
-        // Refresh points if task completed by helper
-        if (status === "completed" && userType === "helper") {
-          const points = await getHelperPoints(user.id);
-          setHelperPoints(points);
-        }
       }
-    } catch (error) {
-      console.error("Error updating task:", error);
-      toast({
-        title: "Erreur",
-        description: "Nous n'avons pas pu mettre à jour cette tâche. Veuillez réessayer.",
-        variant: "destructive"
-      });
+    }
+    
+    // Load tasks initially
+    loadTasks();
+    
+    // Set up event listener for storage changes (when tasks are created or modified)
+    window.addEventListener('storage', loadTasks);
+    
+    // Cleanup function
+    return () => {
+      window.removeEventListener('storage', loadTasks);
+    };
+  }, [location.state, navigate, toast, userType]);
+
+  // Reload tasks from localStorage to ensure we have the latest data
+  useEffect(() => {
+    const storedTasks = localStorage.getItem("tasks");
+    if (storedTasks) {
+      setTasks(JSON.parse(storedTasks));
+    }
+    
+    // Also update points when reloading
+    if (userType === "helper") {
+      const points = parseInt(localStorage.getItem("helperPoints") || "0");
+      setHelperPoints(points);
+    }
+  }, [userType]);
+
+  const handleTaskUpdate = (taskId: string, status: "pending" | "assigned" | "completed" | "cancelled") => {
+    const updatedTasks = tasks.map(task => 
+      task.id === taskId ? { ...task, status, helperAssigned: status === "assigned" ? localStorage.getItem("userId") || "" : task.helperAssigned } : task
+    );
+    
+    setTasks(updatedTasks);
+    // Save to localStorage
+    localStorage.setItem("tasks", JSON.stringify(updatedTasks));
+    
+    // Update helper points if task completed
+    if (status === "completed" && userType === "helper") {
+      const newPoints = helperPoints + 50;
+      setHelperPoints(newPoints);
+      localStorage.setItem("helperPoints", newPoints.toString());
     }
   };
   
   const countTasksByStatus = (status: string) => {
     if (userType === "elderly") {
-      return tasks.filter(t => t.status === status && t.requestedBy === user?.id).length;
+      return tasks.filter(t => t.status === status && t.requestedBy === localStorage.getItem("userId")).length;
     } else {
       return tasks.filter(t => t.status === status).length;
     }
@@ -153,9 +128,7 @@ const Dashboard = () => {
   
   return (
     <div className={`flex flex-col min-h-screen ${userType === "elderly" ? "elderly-mode" : ""}`}>
-      <Header userType={userType}>
-        {user && <Notifications />}
-      </Header>
+      <Header userType={userType} />
       
       <main className="flex-grow container mx-auto px-4 py-8">
         <h1 className="text-2xl md:text-3xl font-bold mb-8">
@@ -248,11 +221,7 @@ const Dashboard = () => {
           {userType === "elderly" ? "Mes demandes récentes" : "Tâches récentes"}
         </h2>
         
-        {loading ? (
-          <div className="text-center py-10">Chargement des données...</div>
-        ) : (
-          <TaskList tasks={tasks} userType={userType} onTaskUpdate={handleTaskUpdate} />
-        )}
+        <TaskList tasks={tasks} userType={userType} onTaskUpdate={handleTaskUpdate} />
       </main>
       
       <Footer />

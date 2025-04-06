@@ -1,35 +1,19 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import UserTypeSelection from "@/components/UserTypeSelection";
 import { UserType } from "@/types";
-import { getSiteContent } from "@/utils/supabaseRPC";
 
 const Index = () => {
   const navigate = useNavigate();
   const [showSelection, setShowSelection] = useState(false);
-  const [aboutContent, setAboutContent] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  
-  useEffect(() => {
-    async function loadAboutContent() {
-      setIsLoading(true);
-      const content = await getSiteContent("about");
-      if (content) {
-        setAboutContent(content.content);
-      }
-      setIsLoading(false);
-    }
-
-    loadAboutContent();
-  }, []);
   
   const handleUserTypeSelection = (type: UserType) => {
     console.log(`Selected user type: ${type}`);
-    navigate("/register", { state: { userType: type } });
+    navigate("/register");
   };
   
   return (
@@ -52,20 +36,12 @@ const Index = () => {
                 <p className="text-xl md:text-2xl mb-8 max-w-3xl mx-auto text-gray-700">
                   Gener-Action connecte les personnes séniors avec des jeunes adultes prêts à les aider dans leurs tâches quotidiennes.
                 </p>
-                <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                  <Button 
-                    onClick={() => navigate("/register")}
-                    className="text-lg px-8 py-6 bg-app-blue hover:bg-app-blue/90"
-                  >
-                    Créer un compte
-                  </Button>
-                  <Button 
-                    onClick={() => navigate("/login")}
-                    className="text-lg px-8 py-6 bg-gray-700 hover:bg-gray-800"
-                  >
-                    Se connecter
-                  </Button>
-                </div>
+                <Button 
+                  onClick={() => navigate("/register")}
+                  className="text-lg px-8 py-6 bg-app-blue hover:bg-app-blue/90"
+                >
+                  Commencer
+                </Button>
               </div>
             </section>
             
@@ -110,23 +86,6 @@ const Index = () => {
                     </p>
                   </div>
                 </div>
-              </div>
-            </section>
-
-            {/* About Section */}
-            <section className="py-16 bg-gray-50">
-              <div className="container mx-auto px-4">
-                <h2 className="text-2xl md:text-4xl font-bold mb-8 text-center">
-                  À propos de nous
-                </h2>
-                {isLoading ? (
-                  <div className="text-center">Chargement...</div>
-                ) : (
-                  <div 
-                    className="max-w-4xl mx-auto"
-                    dangerouslySetInnerHTML={{ __html: aboutContent }}
-                  />
-                )}
               </div>
             </section>
           </>

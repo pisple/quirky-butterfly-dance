@@ -1,12 +1,12 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 import { UserType } from "@/types";
 import { z } from "zod";
 import {
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { v4 as uuidv4 } from 'uuid';
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Email invalide" }),
@@ -29,9 +30,25 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 const Login = () => {
   const navigate = useNavigate();
-  const { signIn } = useAuth();
+  const { toast } = useToast();
   const [userType, setUserType] = useState<UserType>("elderly");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [existingUsers, setExistingUsers] = useState<{email: string, userId: string}[]>([]);
+
+  useEffect(() => {
+    // Charger les utilisateurs existants depuis le localStorage
+    const storedUsers = localStorage.getItem("users");
+    if (storedUsers) {
+      setExistingUsers(JSON.parse(storedUsers));
+    } else {
+      // Créer quelques utilisateurs par défaut si aucun n'existe
+      const defaultUsers = [
+        { email: "senior@example.com", userId: "senior1" },
+        { email: "helper@example.com", userId: "helper1" }
+      ];
+      localStorage.setItem("users", JSON.stringify(defaultUsers));
+      setExistingUsers(defaultUsers);
+    }
+  }, []);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -41,16 +58,38 @@ const Login = () => {
     },
   });
 
-  const onSubmit = async (data: LoginFormValues) => {
-    try {
-      setIsSubmitting(true);
-      await signIn(data.email, data.password, userType);
-      navigate("/dashboard", { state: { userType } });
-    } catch (error) {
-      console.error("Erreur de connexion:", error);
-    } finally {
-      setIsSubmitting(false);
+  const onSubmit = (data: LoginFormValues) => {
+    console.log("Login data:", data);
+    
+    // Vérifier si l'email existe dans la liste des utilisateurs
+    const existingUser = existingUsers.find(user => user.email === data.email);
+    
+    if (!existingUser) {
+      toast({
+        title: "Compte non trouvé",
+        description: "Aucun compte n'existe avec cette adresse email. Veuillez vous inscrire.",
+        variant: "destructive"
+      });
+      return;
     }
+    
+    // Simuler une connexion réussie
+    toast({
+      title: "Connexion réussie",
+      description: "Bienvenue sur Gener-Action !",
+    });
+    
+    // Générer un ID utilisateur s'il n'existe pas déjà
+    const userId = existingUser.userId || uuidv4();
+    
+    // Stocker les informations utilisateur dans le localStorage
+    localStorage.setItem("userType", userType);
+    localStorage.setItem("userEmail", data.email);
+    localStorage.setItem("userId", userId);
+    localStorage.setItem("isLoggedIn", "true");
+    
+    // Rediriger vers le tableau de bord
+    navigate("/dashboard", { state: { userType } });
   };
   
   return (
@@ -133,9 +172,8 @@ const Login = () => {
                   <Button 
                     type="submit" 
                     className={`w-full bg-app-blue hover:bg-app-blue/90 ${userType === "elderly" ? "text-lg py-6" : ""}`}
-                    disabled={isSubmitting}
                   >
-                    {isSubmitting ? "Connexion..." : "Se connecter"}
+                    Se connecter
                   </Button>
                   
                   <div className="text-center">
@@ -144,7 +182,7 @@ const Login = () => {
                       <Button 
                         variant="link" 
                         className="p-0" 
-                        onClick={() => navigate("/register")}
+                        onClick={() => navigate("/")}
                       >
                         S'inscrire
                       </Button>
