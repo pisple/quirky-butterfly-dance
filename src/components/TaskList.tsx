@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import TaskCard from "./TaskCard";
 import { Task } from "@/types";
@@ -42,9 +41,20 @@ const TaskList = ({ tasks, userType, onTaskUpdate }: TaskListProps) => {
     ? relevantTasks.filter(task => task.status !== "cancelled" && task.status !== "completed")
     : relevantTasks;
   
+  // Add some debugging information
+  console.log("TaskList rendering with:", {
+    userType,
+    totalTasks: tasks.length,
+    relevantTasks: relevantTasks.length,
+    availableTasks: availableTasks.length
+  });
+  
+  // Log tasks waiting for approval to debug
+  const waitingApprovalTasks = availableTasks.filter(task => task.status === "waiting_approval");
+  console.log("Tasks waiting for approval:", waitingApprovalTasks);
+  
   // Filtrer selon le statut de la tâche
   const pendingTasks = availableTasks.filter(task => task.status === "pending");
-  const waitingApprovalTasks = availableTasks.filter(task => task.status === "waiting_approval");
   const assignedTasks = availableTasks.filter(task => task.status === "assigned");
   
   // Fonction pour trier les tâches par proximité
@@ -120,11 +130,11 @@ const TaskList = ({ tasks, userType, onTaskUpdate }: TaskListProps) => {
     ? assignedTasks.filter(task => task.type === filter) 
     : assignedTasks;
   
-  // Déterminer les tâches à afficher selon l'onglet actif
+  // For elderly users, make sure to highlight waiting_approval tasks - these are tasks waiting for their confirmation
   let displayedTasks;
   
   if (userType === "elderly") {
-    // Pour les seniors, afficher toutes leurs tâches actives (pending + waiting_approval + assigned)
+    // For seniors, show all their active tasks including waiting_approval with clear visibility
     displayedTasks = filter 
       ? availableTasks.filter(task => task.type === filter)
       : availableTasks;
@@ -138,7 +148,7 @@ const TaskList = ({ tasks, userType, onTaskUpdate }: TaskListProps) => {
     } else {
       tasksBeforeSorting = filteredAssignedTasks;
     }
-    displayedTasks = sortTasksByProximity(tasksBeforeSorting);
+    displayedTasks = sortByProximity ? sortTasksByProximity(tasksBeforeSorting) : tasksBeforeSorting;
   }
   
   if (displayedTasks.length === 0) {
@@ -167,6 +177,18 @@ const TaskList = ({ tasks, userType, onTaskUpdate }: TaskListProps) => {
             </TabsTrigger>
           </TabsList>
         </Tabs>
+      )}
+      
+      {/* For elderly users, show a special notice if there are tasks waiting for approval */}
+      {userType === "elderly" && waitingApprovalTasks.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+          <p className="text-amber-800 font-medium">
+            {waitingApprovalTasks.length === 1 
+              ? "Vous avez 1 proposition d'aide en attente de votre confirmation." 
+              : `Vous avez ${waitingApprovalTasks.length} propositions d'aide en attente de votre confirmation.`
+            }
+          </p>
+        </div>
       )}
       
       <div className="mb-6 flex flex-wrap gap-2">

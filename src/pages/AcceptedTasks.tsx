@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -60,9 +59,13 @@ const AcceptedTasks = () => {
           );
         }
       } else {
-        // For elderly, show all their tasks
+        // For elderly, show all their tasks with special emphasis on tasks waiting for approval
         const userTasks = await getTasksByUser(user.id, "requestedBy").catch(() => []);
-        loadedTasks = userTasks;
+        
+        if (userTasks.length > 0) {
+          // For the elderly user, include pending tasks AND any tasks waiting for their approval
+          loadedTasks = userTasks;
+        }
       }
       
       // If no tasks loaded from Supabase, fall back to local storage
@@ -70,7 +73,7 @@ const AcceptedTasks = () => {
         console.log("Falling back to local storage for tasks");
         
         if (userType === "elderly") {
-          // For seniors, get all their tasks
+          // For seniors, get all their tasks including those waiting for approval
           const allTasks = getAllTasks();
           loadedTasks = allTasks.filter(task => task.requestedBy === user.id);
         } else {
@@ -87,6 +90,9 @@ const AcceptedTasks = () => {
           );
         }
       }
+      
+      // Add debugging log to see what tasks are loaded
+      console.log("Loaded tasks for user:", user.id, "userType:", userType, "tasks:", loadedTasks);
       
       setTasks(loadedTasks);
     } catch (error) {
