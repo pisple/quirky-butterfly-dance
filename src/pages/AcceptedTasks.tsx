@@ -6,7 +6,7 @@ import { Task, UserType } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
-import { getUserTasks, updateLocalTask, updateHelperPoints } from "@/utils/localTaskStorage";
+import { getUserTasks, updateLocalTask, updateHelperPoints, getAllTasks } from "@/utils/localTaskStorage";
 
 const AcceptedTasks = () => {
   const { user } = useAuth();
@@ -37,12 +37,26 @@ const AcceptedTasks = () => {
   const loadTasks = () => {
     if (!user) return;
     
-    // For elderly, get tasks they requested
-    // For helpers, get tasks they are assigned to
-    const type = userType === "elderly" ? "requestedBy" : "helperAssigned";
-    const userTasks = getUserTasks(user.id, type);
-    
-    setTasks(userTasks);
+    if (userType === "elderly") {
+      // For elderly, get tasks they requested
+      const userTasks = getUserTasks(user.id, "requestedBy");
+      setTasks(userTasks);
+    } else {
+      // For helpers, load all available pending tasks plus their assigned tasks
+      const allTasks = getAllTasks();
+      const pendingTasks = allTasks.filter(task => task.status === "pending");
+      const assignedToMeTasks = getUserTasks(user.id, "helperAssigned");
+      
+      // Combine all tasks without duplicates
+      const combinedTasks = [...pendingTasks];
+      assignedToMeTasks.forEach(task => {
+        if (!combinedTasks.some(t => t.id === task.id)) {
+          combinedTasks.push(task);
+        }
+      });
+      
+      setTasks(combinedTasks);
+    }
   };
 
   const handleTaskUpdate = (taskId: string, status: "pending" | "waiting_approval" | "assigned" | "completed" | "cancelled") => {

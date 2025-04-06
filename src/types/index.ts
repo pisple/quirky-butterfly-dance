@@ -1,7 +1,7 @@
 
 export type UserType = "elderly" | "helper";
 
-export type TaskType = "groceries" | "cooking";
+export type TaskType = "groceries" | "cooking" | "gardening" | "technology" | "accompaniment";
 
 export interface KeywordOption {
   value: string;
@@ -35,6 +35,6 @@ export interface Task {
   requestedBy: string;
   requestedByName: string;
   requestedDate: string;
-  status: "pending" | "assigned" | "completed" | "cancelled";
+  status: "pending" | "waiting_approval" | "assigned" | "completed" | "cancelled";
   helperAssigned?: string;
 }
