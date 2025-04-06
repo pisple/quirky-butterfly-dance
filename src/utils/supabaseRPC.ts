@@ -140,6 +140,7 @@ export async function createNotification(
 // Tasks operations
 export async function getTasks(): Promise<Task[]> {
   try {
+    console.log("Fetching all tasks from Supabase");
     const { data, error } = await supabase
       .from("tasks")
       .select("*")
@@ -147,9 +148,10 @@ export async function getTasks(): Promise<Task[]> {
 
     if (error) {
       console.error("Error fetching tasks:", error);
-      return [];
+      throw error;
     }
 
+    console.log("Successfully fetched tasks from Supabase:", data);
     return (data || []).map(adaptTaskFromDb);
   } catch (error) {
     console.error(`Error in getTasks:`, error);
@@ -161,6 +163,7 @@ export async function getTasksByUser(userId: string, type: "requestedBy" | "help
   const dbField = type === "requestedBy" ? "requested_by" : "helper_assigned";
   
   try {
+    console.log(`Fetching tasks for user ${userId} with field ${dbField}`);
     const { data, error } = await supabase
       .from("tasks")
       .select("*")
@@ -169,9 +172,10 @@ export async function getTasksByUser(userId: string, type: "requestedBy" | "help
 
     if (error) {
       console.error(`Error fetching tasks for user ${userId}:`, error);
-      return [];
+      throw error;
     }
 
+    console.log(`Successfully fetched tasks for user ${userId}:`, data);
     return (data || []).map(adaptTaskFromDb);
   } catch (error) {
     console.error(`Error in getTasksByUser:`, error);
@@ -203,13 +207,17 @@ export async function createTask(task: Omit<Task, "id">): Promise<Task | null> {
 
     if (error) {
       console.error("Error creating task:", error);
-      return null;
+      console.error("Error details:", error.details);
+      console.error("Error hint:", error.hint);
+      console.error("Error message:", error.message);
+      throw error;
     }
 
+    console.log("Successfully created task in Supabase:", data);
     return adaptTaskFromDb(data as DbTask);
   } catch (error) {
     console.error(`Error in createTask:`, error);
-    return null;
+    throw error; // Re-throw to propagate to caller for better error handling
   }
 }
 
@@ -236,9 +244,13 @@ export async function updateTask(taskId: string, updates: Partial<Task>): Promis
 
     if (error) {
       console.error("Error updating task:", error);
+      console.error("Error details:", error.details);
+      console.error("Error hint:", error.hint);
+      console.error("Error message:", error.message);
       return false;
     }
 
+    console.log("Task successfully updated in Supabase");
     return true;
   } catch (error) {
     console.error(`Error in updateTask:`, error);

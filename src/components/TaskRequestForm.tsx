@@ -1,535 +1,373 @@
-import { useState, useEffect } from "react";
+
+import { useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { TaskType, KeywordOption, City } from "@/types";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
-import { ShoppingCart, ChefHat, Flower, Laptop, Users, MapPin, Calendar, Weight, Store, PillIcon, Cookie, Truck } from "lucide-react";
-import { createLocalTask } from "@/utils/localTaskStorage";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from "date-fns";
+import { ChevronRight, Calendar as CalendarIcon } from "lucide-react";
+import { TaskType, KeywordOption, BelgianCity } from "@/types";
+import belgianCities from "@/data/belgian-cities";
+import { useAuth } from "@/hooks/useAuth";
+import { cn } from "@/lib/utils";
+import { createTask as createSupabaseTask } from "@/utils/supabaseRPC";
+import { createTask as createLocalTask } from "@/utils/localTaskStorage";
 
-// Importation des villes belges depuis un fichier séparé
-import { BELGIAN_CITIES } from "@/data/belgian-cities";
-import { createTask } from "@/utils/supabaseRPC";
-
-const taskRequestSchema = z.object({
-  type: z.enum(["groceries", "cooking", "gardening", "technology", "accompaniment"], { 
-    required_error: "Veuillez sélectionner un type d'aide" 
-  }),
-  keywords: z.array(z.string()).min(1, { message: "Veuillez sélectionner au moins un mot-clé" }),
-  location: z.string().min(1, { message: "La ville est requise" }),
-  date: z.string().min(1, { message: "La date est requise" }),
-});
-
-type TaskRequestFormValues = z.infer<typeof taskRequestSchema>;
-
-const GROCERIES_KEYWORDS: KeywordOption[] = [
-  { value: "supermarché", label: "Supermarché" },
-  { value: "pharmacie", label: "Pharmacie" },
-  { value: "marché", label: "Marché" },
-  { value: "épicerie", label: "Épicerie" },
-  { value: "boulangerie", label: "Boulangerie" },
-  { value: "livraison", label: "Livraison à domicile" },
-  { value: "courses-hebdomadaires", label: "Courses hebdomadaires" },
-  { value: "produits-lourds", label: "Produits lourds" }
-];
-
-const COOKING_KEYWORDS: KeywordOption[] = [
-  { value: "repas-simple", label: "Repas simple" },
-  { value: "repas-complet", label: "Repas complet" },
-  { value: "régime-spécial", label: "Régime spécial" },
-  { value: "préparation", label: "Préparation" },
-  { value: "cuisson", label: "Cuisson" },
-  { value: "pâtisserie", label: "Pâtisserie" },
-  { value: "plats-à-emporter", label: "Plats à emporter" },
-  { value: "aide-au-service", label: "Aide au service" }
-];
-
-const GARDENING_KEYWORDS: KeywordOption[] = [
-  { value: "tonte-pelouse", label: "Tonte de pelouse" },
-  { value: "taille-haie", label: "Taille de haie" },
-  { value: "désherbage", label: "Désherbage" },
-  { value: "plantation", label: "Plantation" },
-  { value: "arrosage", label: "Arrosage" },
-  { value: "ramassage-feuilles", label: "Ramassage de feuilles" },
-];
-
-const TECHNOLOGY_KEYWORDS: KeywordOption[] = [
-  { value: "ordinateur", label: "Aide ordinateur" },
-  { value: "smartphone", label: "Aide smartphone" },
-  { value: "internet", label: "Connexion internet" },
-  { value: "email", label: "Gestion emails" },
-  { value: "imprimante", label: "Imprimante" },
-  { value: "tv", label: "Télévision" },
-  { value: "formation", label: "Formation numérique" },
-];
-
-const ACCOMPANIMENT_KEYWORDS: KeywordOption[] = [
-  { value: "rendez-vous-medical", label: "Rendez-vous médical" },
-  { value: "demarches-administratives", label: "Démarches administratives" },
-  { value: "promenade", label: "Promenade" },
-  { value: "visite-culturelle", label: "Visite culturelle" },
-  { value: "compagnie", label: "Simple compagnie" },
-  { value: "lecture", label: "Lecture" },
-];
-
-const getKeywordIcon = (keyword: string) => {
-  switch (keyword) {
-    case "supermarché":
-      return <Store className="mr-2 h-4 w-4" />;
-    case "pharmacie":
-      return <PillIcon className="mr-2 h-4 w-4" />;
-    case "marché":
-      return <MapPin className="mr-2 h-4 w-4" />;
-    case "épicerie":
-      return <Store className="mr-2 h-4 w-4" />;
-    case "boulangerie":
-      return <Cookie className="mr-2 h-4 w-4" />;
-    case "livraison":
-      return <Truck className="mr-2 h-4 w-4" />;
-    case "courses-hebdomadaires":
-      return <Calendar className="mr-2 h-4 w-4" />;
-    case "produits-lourds":
-      return <Weight className="mr-2 h-4 w-4" />;
-    default:
-      return null;
-  }
+// Keywords for different task types
+const taskKeywords: Record<TaskType, KeywordOption[]> = {
+  groceries: [
+    { value: "supermarché", label: "Supermarché" },
+    { value: "pharmacie", label: "Pharmacie" },
+    { value: "boulangerie", label: "Boulangerie" },
+    { value: "courses lourdes", label: "Courses lourdes" },
+    { value: "livraison", label: "Livraison" }
+  ],
+  cooking: [
+    { value: "repas simple", label: "Repas simple" },
+    { value: "repas traditionnel", label: "Repas traditionnel" },
+    { value: "pâtisserie", label: "Pâtisserie" },
+    { value: "régime spécial", label: "Régime spécial" }
+  ],
+  gardening: [
+    { value: "tonte de pelouse", label: "Tonte de pelouse" },
+    { value: "taille de haies", label: "Taille de haies" },
+    { value: "plantation", label: "Plantation" },
+    { value: "désherbage", label: "Désherbage" }
+  ],
+  technology: [
+    { value: "ordinateur", label: "Ordinateur" },
+    { value: "smartphone", label: "Smartphone" },
+    { value: "internet", label: "Internet" },
+    { value: "télévision", label: "Télévision" },
+    { value: "imprimante", label: "Imprimante" }
+  ],
+  accompaniment: [
+    { value: "rendez-vous médical", label: "Rendez-vous médical" },
+    { value: "promenade", label: "Promenade" },
+    { value: "événement social", label: "Événement social" },
+    { value: "démarches administratives", label: "Démarches administratives" }
+  ]
 };
 
-const getTaskIcon = (type: TaskType) => {
-  switch (type) {
-    case "groceries":
-      return <ShoppingCart className="h-6 w-6" />;
-    case "cooking":
-      return <ChefHat className="h-6 w-6" />;
-    case "gardening":
-      return <Flower className="h-6 w-6" />;
-    case "technology":
-      return <Laptop className="h-6 w-6" />;
-    case "accompaniment":
-      return <Users className="h-6 w-6" />;
-    default:
-      return <ShoppingCart className="h-6 w-6" />;
-  }
-};
-
-const getTaskEmoji = (type: TaskType) => {
-  switch (type) {
-    case "groceries":
-      return "🛒";
-    case "cooking":
-      return "👨‍🍳";
-    case "gardening":
-      return "🌻";
-    case "technology":
-      return "📱";
-    case "accompaniment":
-      return "👥";
-    default:
-      return "🛒";
-  }
-};
-
-const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-  const R = 6371; // Rayon de la Terre en km
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = 
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-    Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c; // Distance en km
-};
-
-const findNearestCities = (latitude: number, longitude: number, limit: number = 20): City[] => {
-  const citiesWithDistance = BELGIAN_CITIES.map(city => ({
-    name: city.name,
-    distance: calculateDistance(latitude, longitude, city.latitude, city.longitude)
-  }));
-
-  return citiesWithDistance
-    .sort((a, b) => a.distance - b.distance)
-    .slice(0, limit);
-};
+// Generate city options
+const cityOptions: BelgianCity[] = belgianCities;
 
 const TaskRequestForm = () => {
   const { toast } = useToast();
-  const { user } = useAuth();
-  const [submitting, setSubmitting] = useState(false);
-  const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
-  const [defaultCity, setDefaultCity] = useState<string>("");
-  const [nearbyCities, setNearbyCities] = useState<City[]>([]);
-  const [isLoadingCities, setIsLoadingCities] = useState<boolean>(false);
   const navigate = useNavigate();
+  const { user } = useAuth();
   
-  const form = useForm<TaskRequestFormValues>({
-    resolver: zodResolver(taskRequestSchema),
-    defaultValues: {
-      type: "groceries",
-      keywords: [],
-      location: "",
-      date: new Date().toISOString().split("T")[0],
-    },
-  });
+  const [taskType, setTaskType] = useState<TaskType>("groceries");
+  const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
+  const [customKeyword, setCustomKeyword] = useState("");
+  const [location, setLocation] = useState("");
+  const [locationSearch, setLocationSearch] = useState("");
+  const [showLocationOptions, setShowLocationOptions] = useState(false);
+  const [filteredCities, setFilteredCities] = useState<BelgianCity[]>([]);
+  const [date, setDate] = useState<Date | undefined>(new Date());
+  const [submitting, setSubmitting] = useState(false);
   
-  useEffect(() => {
+  // Filter cities based on search term
+  const handleLocationSearch = (searchTerm: string) => {
+    setLocationSearch(searchTerm);
+    
+    if (searchTerm.length < 2) {
+      setFilteredCities([]);
+      setShowLocationOptions(false);
+      return;
+    }
+    
+    const filtered = cityOptions
+      .filter(city => 
+        city.name.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+      .slice(0, 5); // Limit to 5 results
+    
+    setFilteredCities(filtered);
+    setShowLocationOptions(true);
+  };
+  
+  const selectCity = (city: BelgianCity) => {
+    setLocation(`${city.name} (${city.latitude},${city.longitude})`);
+    setLocationSearch(city.name);
+    setShowLocationOptions(false);
+  };
+  
+  const toggleKeyword = (keyword: string) => {
+    setSelectedKeywords(prev => 
+      prev.includes(keyword)
+        ? prev.filter(k => k !== keyword)
+        : [...prev, keyword]
+    );
+  };
+  
+  const addCustomKeyword = () => {
+    if (!customKeyword.trim()) return;
+    
+    if (!selectedKeywords.includes(customKeyword.trim())) {
+      setSelectedKeywords(prev => [...prev, customKeyword.trim()]);
+    }
+    
+    setCustomKeyword("");
+  };
+  
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
     if (!user) {
       toast({
-        title: "Veuillez vous connecter",
-        description: "Vous devez être connecté pour créer une demande d'aide.",
+        title: "Erreur",
+        description: "Vous devez être connecté pour soumettre une demande.",
+        variant: "destructive"
       });
       navigate("/login");
       return;
     }
     
-    const getUserLocation = () => {
-      setIsLoadingCities(true);
-      
-      // Try to get stored location first
-      const userLocation = localStorage.getItem("userLocation");
-      if (userLocation) {
-        try {
-          const { latitude, longitude } = JSON.parse(userLocation);
-          loadNearbyCities(latitude, longitude);
-        } catch (e) {
-          getCurrentLocation();
-        }
-      } else {
-        getCurrentLocation();
-      }
-    };
-
-    getUserLocation();
-  }, [navigate, toast, user]);
-
-  const getCurrentLocation = () => {
-    setIsLoadingCities(true);
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          loadNearbyCities(latitude, longitude);
-          
-          const coordinates = { latitude, longitude };
-          localStorage.setItem("userLocation", JSON.stringify(coordinates));
-        },
-        (error) => {
-          console.error("Erreur de géolocalisation:", error);
-          setNearbyCities(BELGIAN_CITIES.slice(0, 20).map(city => ({
-            name: city.name,
-            distance: undefined
-          })));
-          setIsLoadingCities(false);
-        },
-        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-      );
-    } else {
-      setNearbyCities(BELGIAN_CITIES.slice(0, 20).map(city => ({
-        name: city.name,
-        distance: undefined
-      })));
-      setIsLoadingCities(false);
-    }
-  };
-
-  const loadNearbyCities = (latitude: number, longitude: number) => {
-    const nearestCities = findNearestCities(latitude, longitude);
-    setNearbyCities(nearestCities);
-    setIsLoadingCities(false);
-    
-    if (!defaultCity && nearestCities.length > 0) {
-      setDefaultCity(nearestCities[0].name);
-      form.setValue("location", nearestCities[0].name);
-    }
-  };
-
-  const taskType = form.watch("type") as TaskType;
-  
-  useEffect(() => {
-    setSelectedKeywords([]);
-    form.setValue("keywords", []);
-  }, [taskType, form]);
-  
-  const getKeywordsForType = (type: TaskType): KeywordOption[] => {
-    switch (type) {
-      case "groceries":
-        return GROCERIES_KEYWORDS;
-      case "cooking":
-        return COOKING_KEYWORDS;
-      case "gardening":
-        return GARDENING_KEYWORDS;
-      case "technology":
-        return TECHNOLOGY_KEYWORDS;
-      case "accompaniment":
-        return ACCOMPANIMENT_KEYWORDS;
-      default:
-        return GROCERIES_KEYWORDS;
-    }
-  };
-  
-  const toggleKeyword = (keyword: string) => {
-    const isSelected = selectedKeywords.includes(keyword);
-    let newSelectedKeywords: string[];
-    
-    if (isSelected) {
-      newSelectedKeywords = selectedKeywords.filter(k => k !== keyword);
-    } else {
-      newSelectedKeywords = [...selectedKeywords, keyword];
-    }
-    
-    setSelectedKeywords(newSelectedKeywords);
-    form.setValue("keywords", newSelectedKeywords, { shouldValidate: true });
-  };
-
-  const onSubmit = async (values: TaskRequestFormValues) => {
-    if (!user) return;
-    
-    setSubmitting(true);
-    
-    try {
-      const newTask = {
-        type: values.type as TaskType,
-        keywords: values.keywords,
-        location: values.location,
-        requestedBy: user.id,
-        requestedByName: user.name || "",
-        requestedDate: values.date,
-        status: "pending" as const,
-      };
-      
-      console.log("Submitting task to Supabase:", newTask);
-      
-      // Use Supabase instead of local storage
-      const createdTask = await createTask(newTask);
-      
-      if (createdTask) {
-        toast({
-          title: "Demande envoyée",
-          description: "Votre demande d'aide a été envoyée avec succès.",
-        });
-        
-        form.reset({
-          type: "groceries", 
-          keywords: [], 
-          location: values.location, 
-          date: new Date().toISOString().split("T")[0]
-        });
-        
-        setSelectedKeywords([]);
-        navigate("/dashboard");
-      } else {
-        // Fallback to local storage if Supabase fails
-        console.log("Falling back to local storage for task creation");
-        const localTask = createLocalTask(newTask);
-        
-        if (localTask) {
-          toast({
-            title: "Demande envoyée (locale)",
-            description: "Votre demande a été enregistrée localement.",
-          });
-          
-          form.reset({
-            type: "groceries", 
-            keywords: [], 
-            location: values.location, 
-            date: new Date().toISOString().split("T")[0]
-          });
-          
-          setSelectedKeywords([]);
-          navigate("/dashboard");
-        } else {
-          throw new Error("Impossible de créer la tâche");
-        }
-      }
-    } catch (error) {
-      console.error("Error creating task:", error);
+    if (selectedKeywords.length === 0) {
       toast({
         title: "Erreur",
-        description: "Nous n'avons pas pu envoyer votre demande. Veuillez réessayer.",
+        description: "Veuillez sélectionner au moins un mot-clé.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    if (!location) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez sélectionner un lieu.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    if (!date) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez sélectionner une date.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    try {
+      setSubmitting(true);
+      
+      const newTask = {
+        type: taskType,
+        keywords: selectedKeywords,
+        location: location,
+        requestedBy: user.id,
+        requestedByName: user.name,
+        requestedDate: date.toISOString().split('T')[0],
+        status: "pending" as const
+      };
+      
+      console.log("Attempting to create task:", newTask);
+      
+      // Try to create task in Supabase
+      try {
+        const createdTask = await createSupabaseTask(newTask);
+        if (createdTask) {
+          console.log("Task created successfully in Supabase:", createdTask);
+          toast({
+            title: "Demande soumise",
+            description: "Votre demande a été soumise avec succès.",
+          });
+          navigate("/dashboard");
+          return;
+        }
+      } catch (error) {
+        console.error("Error creating task in Supabase:", error);
+        // Fall back to local storage
+        console.log("Falling back to local storage for task creation");
+      }
+      
+      // If Supabase fails, create in local storage
+      const localTaskId = createLocalTask(newTask);
+      if (localTaskId) {
+        console.log("Task created in local storage with ID:", localTaskId);
+        toast({
+          title: "Demande soumise (mode hors ligne)",
+          description: "Votre demande a été enregistrée localement.",
+        });
+        navigate("/dashboard");
+      } else {
+        throw new Error("Failed to create task locally");
+      }
+    } catch (error) {
+      console.error("Error submitting task:", error);
+      toast({
+        title: "Erreur",
+        description: "Une erreur est survenue. Veuillez réessayer.",
         variant: "destructive"
       });
     } finally {
       setSubmitting(false);
     }
   };
-
+  
   return (
-    <Card className="w-full max-w-2xl mx-auto">
-      <CardHeader>
-        <CardTitle className="text-2xl md:text-3xl text-center">J'ai besoin d'aide</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <FormField
-              control={form.control}
-              name="type"
-              render={({ field }) => (
-                <FormItem className="space-y-3">
-                  <FormLabel className="text-xl">Quel type d'aide cherchez-vous ?</FormLabel>
-                  <FormControl>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                      <Button
-                        type="button"
-                        variant={field.value === "groceries" ? "default" : "outline"}
-                        className="flex flex-col items-center justify-center p-4 h-24 text-lg"
-                        onClick={() => form.setValue("type", "groceries")}
-                      >
-                        <span className="text-3xl mb-2">🛒</span>
-                        Courses
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={field.value === "cooking" ? "default" : "outline"}
-                        className="flex flex-col items-center justify-center p-4 h-24 text-lg"
-                        onClick={() => form.setValue("type", "cooking")}
-                      >
-                        <span className="text-3xl mb-2">👨‍🍳</span>
-                        Cuisine
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={field.value === "gardening" ? "default" : "outline"}
-                        className="flex flex-col items-center justify-center p-4 h-24 text-lg"
-                        onClick={() => form.setValue("type", "gardening")}
-                      >
-                        <span className="text-3xl mb-2">🌻</span>
-                        Jardinage
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={field.value === "technology" ? "default" : "outline"}
-                        className="flex flex-col items-center justify-center p-4 h-24 text-lg"
-                        onClick={() => form.setValue("type", "technology")}
-                      >
-                        <span className="text-3xl mb-2">📱</span>
-                        Technologie
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={field.value === "accompaniment" ? "default" : "outline"}
-                        className="flex flex-col items-center justify-center p-4 h-24 text-lg md:col-start-2"
-                        onClick={() => form.setValue("type", "accompaniment")}
-                      >
-                        <span className="text-3xl mb-2">👥</span>
-                        Accompagnement
-                      </Button>
-                    </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+    <Card className="w-full max-w-3xl mx-auto">
+      <CardContent className="pt-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Task Type Selection */}
+          <div className="space-y-2">
+            <Label htmlFor="taskType" className="text-lg">Type d'aide</Label>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+              <Button 
+                type="button"
+                variant={taskType === "groceries" ? "default" : "outline"}
+                className={taskType === "groceries" ? "bg-app-blue" : ""}
+                onClick={() => setTaskType("groceries")}
+              >
+                Courses
+              </Button>
+              <Button 
+                type="button"
+                variant={taskType === "cooking" ? "default" : "outline"}
+                className={taskType === "cooking" ? "bg-app-blue" : ""}
+                onClick={() => setTaskType("cooking")}
+              >
+                Cuisine
+              </Button>
+              <Button 
+                type="button"
+                variant={taskType === "gardening" ? "default" : "outline"}
+                className={taskType === "gardening" ? "bg-app-blue" : ""}
+                onClick={() => setTaskType("gardening")}
+              >
+                Jardinage
+              </Button>
+              <Button 
+                type="button"
+                variant={taskType === "technology" ? "default" : "outline"}
+                className={taskType === "technology" ? "bg-app-blue" : ""}
+                onClick={() => setTaskType("technology")}
+              >
+                Technologie
+              </Button>
+              <Button 
+                type="button"
+                variant={taskType === "accompaniment" ? "default" : "outline"}
+                className={taskType === "accompaniment" ? "bg-app-blue" : ""}
+                onClick={() => setTaskType("accompaniment")}
+                className="col-span-2 md:col-span-1"
+              >
+                Accompagnement
+              </Button>
+            </div>
+          </div>
+          
+          {/* Keywords */}
+          <div className="space-y-2">
+            <Label htmlFor="keywords" className="text-lg">Mots-clés</Label>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {taskKeywords[taskType].map((keyword) => (
+                <Badge
+                  key={keyword.value}
+                  variant="outline"
+                  className={cn(
+                    "cursor-pointer text-base py-1.5 px-3",
+                    selectedKeywords.includes(keyword.value) 
+                      ? "bg-app-blue text-white" 
+                      : "bg-gray-100"
+                  )}
+                  onClick={() => toggleKeyword(keyword.value)}
+                >
+                  {keyword.label}
+                </Badge>
+              ))}
+            </div>
             
-            <FormField
-              control={form.control}
-              name="keywords"
-              render={() => (
-                <FormItem>
-                  <FormLabel className="text-xl">Précisions :</FormLabel>
-                  <FormControl>
-                    <div className="flex flex-wrap gap-2">
-                      {getKeywordsForType(taskType).map((keyword) => (
-                        <Badge 
-                          key={keyword.value}
-                          className={`cursor-pointer py-2 px-3 text-base ${
-                            selectedKeywords.includes(keyword.value) 
-                              ? "bg-green-600 hover:bg-green-700" 
-                              : "bg-gray-200 text-gray-800 hover:bg-gray-300"
-                          }`} 
-                          onClick={() => toggleKeyword(keyword.value)}
-                        >
-                          {getKeywordIcon(keyword.value)}
-                          {keyword.label}
-                        </Badge>
-                      ))}
-                    </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+            <div className="flex gap-2">
+              <Input
+                id="customKeyword"
+                value={customKeyword}
+                onChange={(e) => setCustomKeyword(e.target.value)}
+                placeholder="Ajouter un autre mot-clé"
+                className="flex-1"
+              />
+              <Button 
+                type="button"
+                onClick={addCustomKeyword}
+              >
+                Ajouter
+              </Button>
+            </div>
+          </div>
+          
+          {/* Location */}
+          <div className="space-y-2">
+            <Label htmlFor="location" className="text-lg">Lieu</Label>
+            <div className="relative">
+              <Input
+                id="location"
+                value={locationSearch}
+                onChange={(e) => handleLocationSearch(e.target.value)}
+                placeholder="Entrez une ville ou un code postal"
+              />
+              
+              {showLocationOptions && (
+                <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg">
+                  {filteredCities.length > 0 ? (
+                    filteredCities.map((city) => (
+                      <div
+                        key={`${city.name}-${city.latitude}-${city.longitude}`}
+                        className="p-2 cursor-pointer hover:bg-gray-100"
+                        onClick={() => selectCity(city)}
+                      >
+                        {city.name}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-2 text-gray-500">Aucune ville trouvée</div>
+                  )}
+                </div>
               )}
-            />
-            
-            <FormField
-              control={form.control}
-              name="location"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xl">Où ?</FormLabel>
-                  <Select 
-                    onValueChange={field.onChange} 
-                    defaultValue={field.value || defaultCity}
-                    value={field.value}
-                  >
-                    <FormControl>
-                      <SelectTrigger className="text-lg p-4">
-                        <SelectValue placeholder={isLoadingCities ? "Recherche des villes proches..." : "Sélectionnez une ville"} />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent className="max-h-[300px] overflow-y-auto">
-                      {isLoadingCities ? (
-                        <SelectItem value="loading" disabled>
-                          Recherche des villes les plus proches...
-                        </SelectItem>
-                      ) : (
-                        nearbyCities.map((city) => (
-                          <SelectItem key={city.name} value={city.name} className="flex items-center">
-                            <MapPin className="mr-2 h-4 w-4 inline-block" />
-                            {city.name}{city.distance ? ` (${Math.round(city.distance)} km)` : ''}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control}
-              name="date"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xl">Quand ?</FormLabel>
-                  <FormControl>
-                    <Input {...field} type="date" className="text-lg p-4" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <Button 
-              type="submit" 
-              className="w-full py-6 text-xl font-medium bg-green-600 hover:bg-green-700"
-              disabled={submitting || selectedKeywords.length === 0}
-            >
-              {submitting ? "Envoi en cours..." : "Envoyer ma demande"}
-            </Button>
-          </form>
-        </Form>
+            </div>
+          </div>
+          
+          {/* Date */}
+          <div className="space-y-2">
+            <Label htmlFor="date" className="text-lg">Date</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start text-left font-normal"
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {date ? format(date, "PPP") : <span>Sélectionnez une date</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar
+                  mode="single"
+                  selected={date}
+                  onSelect={setDate}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+          
+          {/* Submit Button */}
+          <Button 
+            type="submit" 
+            className="w-full bg-app-blue hover:bg-app-blue/90 text-lg py-6"
+            disabled={submitting}
+          >
+            {submitting ? "En cours..." : "Soumettre ma demande d'aide"}
+          </Button>
+        </form>
       </CardContent>
     </Card>
   );

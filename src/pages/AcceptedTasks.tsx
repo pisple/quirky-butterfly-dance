@@ -16,6 +16,7 @@ const AcceptedTasks = () => {
   const [userType, setUserType] = useState<UserType>("helper");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const { toast } = useToast();
   
   useEffect(() => {
@@ -40,14 +41,17 @@ const AcceptedTasks = () => {
   const loadTasks = async () => {
     if (!user) return;
     setIsLoading(true);
+    setLoadError(null);
     
     try {
+      console.log("Loading tasks for user:", user.id, "userType:", user.type);
       // First try to get tasks from Supabase
       let loadedTasks: Task[] = [];
       
       try {
         if (userType === "helper") {
           // For helpers, load all pending tasks (created by seniors) and their assigned tasks
+          console.log("Fetching all tasks for helper user");
           const allTasks = await getTasks();
           
           if (allTasks.length > 0) {
@@ -59,6 +63,7 @@ const AcceptedTasks = () => {
               (task.helperAssigned === user.id && 
                (task.status === "assigned" || task.status === "waiting_approval"))
             );
+            console.log("Filtered tasks for helper:", loadedTasks.length);
           }
         } else {
           // For elderly, show all their tasks including those waiting for approval
@@ -100,6 +105,7 @@ const AcceptedTasks = () => {
       setTasks(loadedTasks);
     } catch (error) {
       console.error("Error loading tasks:", error);
+      setLoadError("Impossible de charger les tâches. Veuillez réessayer.");
       toast({
         title: "Erreur",
         description: "Impossible de charger les tâches. Veuillez réessayer.",
@@ -193,6 +199,11 @@ const AcceptedTasks = () => {
       });
     }
   };
+
+  const handleRetry = () => {
+    setLoadError(null);
+    loadTasks();
+  };
   
   return (
     <div className={`flex flex-col min-h-screen ${userType === "elderly" ? "elderly-mode" : ""}`}>
@@ -206,6 +217,11 @@ const AcceptedTasks = () => {
         {isLoading ? (
           <div className="flex justify-center py-12">
             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-app-blue"></div>
+          </div>
+        ) : loadError ? (
+          <div className="text-center py-12">
+            <p className="text-red-500 mb-4">{loadError}</p>
+            <Button onClick={handleRetry}>Réessayer</Button>
           </div>
         ) : (
           <TaskList tasks={tasks} userType={userType} onTaskUpdate={handleTaskUpdate} />
