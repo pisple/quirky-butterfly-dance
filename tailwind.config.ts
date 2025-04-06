@@ -49,14 +49,15 @@ const config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        "app-blue": "#1E90FF",
-        "app-teal": "#20B2AA",
-        "app-green": "#4CAF50",
-        "app-purple": "#9b87f5",
-        "app-orange": "#FF9800",
-        "app-red": "#F44336",
-        "app-dark": "#1A1F2C",
-        "app-light": "#F5F7FA",
+        // Logo-based color palette
+        "app-blue": "#6E73C9", // Main blue from logo
+        "app-teal": "#80A8B0", // Teal accent from logo
+        "app-green": "#7CA78A", // Green from logo
+        "app-purple": "#9b87f5", // Purple accent
+        "app-orange": "#DCA47C", // Orange-ish accent from logo
+        "app-red": "#D87470",   // Red accent
+        "app-dark": "#444B65",  // Dark blue from logo
+        "app-light": "#F5F7FA", // Light background
         "sidebar-background": "hsl(var(--sidebar-background))",
         "sidebar-foreground": "hsl(var(--sidebar-foreground))",
         "sidebar-primary": "hsl(var(--sidebar-primary))",
