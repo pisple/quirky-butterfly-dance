@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
@@ -163,19 +164,28 @@ const Dashboard = () => {
   };
   
   const countTasksByStatus = (status: string) => {
+    if (!tasks || tasks.length === 0) return 0;
+    
     if (userType === "elderly") {
       return tasks.filter(t => t.status === status && t.requestedBy === user?.id).length;
-    } else {
+    } else if (userType === "helper") {
       if (status === "pending") {
         return tasks.filter(t => t.status === status).length;
-      } else if (status === "assigned") {
-        return tasks.filter(t => t.status === status && t.helperAssigned === user?.id).length;
-      } else if (status === "waiting_approval") {
-        return tasks.filter(t => t.status === status && t.helperAssigned === user?.id).length;
+      } else if (status === "assigned" || status === "waiting_approval") {
+        return tasks.filter(t => 
+          t.status === status && 
+          t.helperAssigned === user?.id
+        ).length;
+      } else if (status === "completed") {
+        return tasks.filter(t => 
+          t.status === status && 
+          t.helperAssigned === user?.id
+        ).length;
       } else {
         return tasks.filter(t => t.status === status).length;
       }
     }
+    return 0;
   };
   
   return (

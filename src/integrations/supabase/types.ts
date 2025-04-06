@@ -129,6 +129,7 @@ export type Database = {
           keywords: string[]
           location: string
           requested_by: string
+          requested_by_name: string | null
           requested_date: string
           status: string
           type: string
@@ -141,6 +142,7 @@ export type Database = {
           keywords: string[]
           location: string
           requested_by: string
+          requested_by_name?: string | null
           requested_date: string
           status: string
           type: string
@@ -153,6 +155,7 @@ export type Database = {
           keywords?: string[]
           location?: string
           requested_by?: string
+          requested_by_name?: string | null
           requested_date?: string
           status?: string
           type?: string
