@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { getUserTasks, updateLocalTask, updateHelperPoints, getAllTasks } from "@/utils/localTaskStorage";
+import { getTasks, getTasksByUser, updateTask } from "@/utils/supabaseRPC";
 
 const AcceptedTasks = () => {
   const { user } = useAuth();
@@ -15,6 +16,7 @@ const AcceptedTasks = () => {
   const [userType, setUserType] = useState<UserType>("helper");
   const [tasks, setTasks] = useState<Task[]>([]);
   const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(true);
   
   useEffect(() => {
     if (!user) {
@@ -31,79 +33,129 @@ const AcceptedTasks = () => {
       setUserType(user.type as UserType);
     }
     
-    // Load tasks from localStorage
+    // Load tasks from database and localStorage
     loadTasks();
   }, [user, navigate, toast]);
   
-  const loadTasks = () => {
+  const loadTasks = async () => {
     if (!user) return;
     
-    if (userType === "elderly") {
-      // Pour les seniors, récupérer toutes leurs tâches, y compris celles en attente d'approbation
-      const allTasks = getAllTasks();
-      const userTasks = allTasks.filter(task => 
-        task.requestedBy === user.id && 
-        (task.status === "waiting_approval" || task.status === "assigned")
-      );
-      setTasks(userTasks);
-    } else {
-      // Pour les helpers, récupérer leurs tâches en attente d'approbation et assignées
-      const allTasks = getAllTasks();
+    setIsLoading(true);
+    
+    try {
+      // First, try to get tasks from Supabase (if connected)
+      let tasksData: Task[] = [];
       
-      // Filtrer pour obtenir les tâches assignées à cet helper et celles en attente d'approbation
-      const helperTasks = allTasks.filter(task => 
-        (task.helperAssigned === user.id && 
-         (task.status === "assigned" || task.status === "waiting_approval"))
-      );
+      if (userType === "elderly") {
+        // Pour les seniors, récupérer toutes leurs tâches en cours de traitement (en attente ou assignées)
+        try {
+          tasksData = await getTasksByUser(user.id, "requestedBy");
+          // Filtrer pour ne garder que les tâches en attente d'approbation ou assignées
+          tasksData = tasksData.filter(task => 
+            task.status === "waiting_approval" || task.status === "assigned"
+          );
+        } catch (error) {
+          console.error("Error fetching tasks from Supabase:", error);
+          // Fallback to localStorage if Supabase fails
+          const allTasks = getAllTasks();
+          tasksData = allTasks.filter(task => 
+            task.requestedBy === user.id && 
+            (task.status === "waiting_approval" || task.status === "assigned")
+          );
+        }
+      } else {
+        // Pour les helpers, récupérer leurs tâches en attente d'approbation et assignées
+        try {
+          tasksData = await getTasksByUser(user.id, "helperAssigned");
+          // Filtrer pour ne garder que les tâches en attente d'approbation ou assignées
+          tasksData = tasksData.filter(task => 
+            task.status === "waiting_approval" || task.status === "assigned"
+          );
+        } catch (error) {
+          console.error("Error fetching tasks from Supabase:", error);
+          // Fallback to localStorage if Supabase fails
+          const allTasks = getAllTasks();
+          tasksData = allTasks.filter(task => 
+            task.helperAssigned === user.id && 
+            (task.status === "waiting_approval" || task.status === "assigned")
+          );
+        }
+      }
       
-      setTasks(helperTasks);
+      setTasks(tasksData);
+    } catch (error) {
+      console.error("Error loading tasks:", error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger les tâches",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleTaskUpdate = (taskId: string, status: "pending" | "waiting_approval" | "assigned" | "completed" | "cancelled") => {
+  const handleTaskUpdate = async (taskId: string, status: "pending" | "waiting_approval" | "assigned" | "completed" | "cancelled") => {
     if (!user) return;
     
-    const success = updateLocalTask(taskId, { status });
-    
-    if (success) {
-      // Update local state
-      const updatedTasks = tasks.map(task => 
-        task.id === taskId ? { ...task, status } : task
-      );
+    try {
+      // Try to update task in Supabase first
+      let success = false;
+      try {
+        success = await updateTask(taskId, { status });
+      } catch (error) {
+        console.error("Error updating task in Supabase:", error);
+        // Fallback to localStorage
+        success = updateLocalTask(taskId, { status });
+      }
       
-      setTasks(updatedTasks);
-      
-      if (status === "completed") {
-        // Add 50 points for the helper when a task is completed
-        if (userType === "helper" && user.id) {
-          const newPoints = updateHelperPoints(user.id, 50);
-          
+      if (success) {
+        // Update local state
+        const updatedTasks = tasks.map(task => 
+          task.id === taskId ? { ...task, status } : task
+        );
+        
+        setTasks(updatedTasks);
+        
+        if (status === "completed") {
+          // Add 50 points for the helper when a task is completed
+          if (userType === "helper" && user.id) {
+            const newPoints = updateHelperPoints(user.id, 50);
+            
+            toast({
+              title: "Tâche terminée",
+              description: `La tâche a été marquée comme terminée avec succès. Vous avez gagné 50 points! Vous avez maintenant ${newPoints} points au total.`
+            });
+          } else {
+            toast({
+              title: "Tâche terminée",
+              description: "La tâche a été marquée comme terminée avec succès."
+            });
+          }
+        } else if (status === "cancelled") {
           toast({
-            title: "Tâche terminée",
-            description: `La tâche a été marquée comme terminée avec succès. Vous avez gagné 50 points! Vous avez maintenant ${newPoints} points au total.`
+            title: "Tâche annulée",
+            description: "La tâche a été annulée avec succès."
           });
-        } else {
+        } else if (status === "waiting_approval") {
           toast({
-            title: "Tâche terminée",
-            description: "La tâche a été marquée comme terminée avec succès."
+            title: "Proposition envoyée",
+            description: "Votre proposition d'aide a été envoyée au senior."
+          });
+        } else if (status === "assigned") {
+          toast({
+            title: "Aide confirmée",
+            description: "Le senior a confirmé votre aide."
           });
         }
-      } else if (status === "cancelled") {
-        toast({
-          title: "Tâche annulée",
-          description: "La tâche a été annulée avec succès."
-        });
-      } else if (status === "waiting_approval") {
-        toast({
-          title: "Proposition envoyée",
-          description: "Votre proposition d'aide a été envoyée au senior."
-        });
-      } else if (status === "assigned") {
-        toast({
-          title: "Aide confirmée",
-          description: "Le senior a confirmé votre aide."
-        });
       }
+    } catch (error) {
+      console.error("Error updating task:", error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de mettre à jour la tâche",
+        variant: "destructive"
+      });
     }
   };
   
@@ -116,7 +168,11 @@ const AcceptedTasks = () => {
           {userType === "elderly" ? "Mes demandes en cours" : "Mes tâches acceptées"}
         </h1>
         
-        <TaskList tasks={tasks} userType={userType} onTaskUpdate={handleTaskUpdate} />
+        {isLoading ? (
+          <div className="text-center py-8">Chargement des tâches...</div>
+        ) : (
+          <TaskList tasks={tasks} userType={userType} onTaskUpdate={handleTaskUpdate} />
+        )}
       </main>
       
       <Footer />
