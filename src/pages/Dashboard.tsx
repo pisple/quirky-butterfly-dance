@@ -9,7 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { getTasks, getTasksByUser, updateTask, getHelperPoints } from "@/utils/supabaseRPC";
+import { getSiteContent } from "@/utils/supabaseRPC";
+import { getAllTasks, getUserTasks, getHelperPoints, updateLocalTask } from "@/utils/localTaskStorage";
 import Notifications from "@/components/Notifications";
 
 const Dashboard = () => {
@@ -50,11 +51,11 @@ const Dashboard = () => {
       
       if (userType === "elderly") {
         // Senior users see their own tasks
-        userTasks = await getTasksByUser(user.id, "requestedBy");
+        userTasks = getUserTasks(user.id, "requestedBy");
       } else {
         // Helpers see all tasks plus their accepted tasks
-        const allTasks = await getTasks();
-        const acceptedTasks = await getTasksByUser(user.id, "helperAssigned");
+        const allTasks = getAllTasks();
+        const acceptedTasks = getUserTasks(user.id, "helperAssigned");
         
         // Merge and deduplicate tasks
         const tasksMap = new Map<string, Task>();
@@ -68,8 +69,8 @@ const Dashboard = () => {
       setTasks(userTasks);
       
       // Load points for helpers
-      if (userType === "helper") {
-        const points = await getHelperPoints(user.id);
+      if (userType === "helper" && user.id) {
+        const points = getHelperPoints(user.id);
         setHelperPoints(points);
         
         // Get user location for proximity sorting
@@ -110,7 +111,7 @@ const Dashboard = () => {
     if (!user) return;
     
     try {
-      // Update in Supabase
+      // Update in localStorage
       const updates: Partial<Task> = { status };
       
       // If assigning to a helper, update the helper assigned field
@@ -118,7 +119,7 @@ const Dashboard = () => {
         updates.helperAssigned = user.id;
       }
       
-      const success = await updateTask(taskId, updates);
+      const success = updateLocalTask(taskId, updates);
       
       if (success) {
         // Update local state
@@ -128,9 +129,26 @@ const Dashboard = () => {
         setTasks(updatedTasks);
         
         // Refresh points if task completed by helper
-        if (status === "completed" && userType === "helper") {
-          const points = await getHelperPoints(user.id);
+        if (status === "completed" && userType === "helper" && user.id) {
+          const points = getHelperPoints(user.id);
           setHelperPoints(points);
+        }
+
+        // Show success toast
+        let message = "";
+        if (status === "assigned") {
+          message = "Tâche acceptée avec succès.";
+        } else if (status === "completed") {
+          message = "Tâche marquée comme terminée.";
+        } else if (status === "cancelled") {
+          message = "Tâche annulée avec succès.";
+        }
+        
+        if (message) {
+          toast({
+            title: "Mise à jour réussie",
+            description: message
+          });
         }
       }
     } catch (error) {

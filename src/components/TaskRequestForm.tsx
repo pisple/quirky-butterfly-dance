@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,7 +27,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
 import { ShoppingCart, ChefHat, Flower, Laptop, Users, MapPin, Calendar, Weight, Store, PillIcon, Cookie, Truck } from "lucide-react";
-import { createTask } from "@/utils/supabaseRPC";
+import { createLocalTask } from "@/utils/localTaskStorage";
 
 // Importation des villes belges depuis un fichier séparé
 import { BELGIAN_CITIES } from "@/data/belgian-cities";
@@ -310,22 +309,19 @@ const TaskRequestForm = () => {
     setSubmitting(true);
     
     try {
-      const taskId = uuidv4();
-      
       const newTask = {
-        id: taskId,
         type: values.type as TaskType,
         keywords: values.keywords,
         location: values.location,
         requestedBy: user.id,
-        requestedByName: user.name,
         requestedDate: values.date,
         status: "pending" as const,
       };
       
       console.log("Submitting task:", newTask);
       
-      const createdTask = await createTask(newTask);
+      // Use local storage instead of Supabase
+      const createdTask = createLocalTask(newTask);
       
       if (createdTask) {
         toast({
