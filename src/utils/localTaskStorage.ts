@@ -22,6 +22,12 @@ export const getUserTasks = (userId: string, type: "requestedBy" | "helperAssign
   }
 };
 
+// Obtenir les tâches disponibles pour les helpers (tâches en attente)
+export const getAvailableTasks = (): Task[] => {
+  const allTasks = getAllTasks();
+  return allTasks.filter(task => task.status === "pending");
+};
+
 // Créer une nouvelle tâche
 export const createLocalTask = (task: Omit<Task, "id">): Task => {
   const allTasks = getAllTasks();

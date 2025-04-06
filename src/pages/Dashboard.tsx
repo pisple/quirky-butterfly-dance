@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { getSiteContent } from "@/utils/supabaseRPC";
-import { getAllTasks, getUserTasks, getHelperPoints, updateLocalTask } from "@/utils/localTaskStorage";
+import { getAllTasks, getUserTasks, getAvailableTasks, getHelperPoints, updateLocalTask } from "@/utils/localTaskStorage";
 import Notifications from "@/components/Notifications";
 
 const Dashboard = () => {
@@ -53,13 +53,13 @@ const Dashboard = () => {
         // Senior users see their own tasks
         userTasks = getUserTasks(user.id, "requestedBy");
       } else {
-        // Helpers see all tasks plus their accepted tasks
-        const allTasks = getAllTasks();
-        const acceptedTasks = getUserTasks(user.id, "helperAssigned");
+        // Helpers see all pending tasks plus their accepted tasks
+        const availableTasks = getAvailableTasks(); // Get all pending tasks
+        const acceptedTasks = getUserTasks(user.id, "helperAssigned"); // Get tasks assigned to this helper
         
         // Merge and deduplicate tasks
         const tasksMap = new Map<string, Task>();
-        [...allTasks, ...acceptedTasks].forEach(task => {
+        [...availableTasks, ...acceptedTasks].forEach(task => {
           tasksMap.set(task.id, task);
         });
         
