@@ -11,15 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-
-interface Notification {
-  id: string;
-  message: string;
-  type: string;
-  related_task_id: string;
-  is_read: boolean;
-  created_at: string;
-}
+import { Notification } from "@/types";
 
 export default function Notifications() {
   const { user } = useAuth();
@@ -37,11 +29,9 @@ export default function Notifications() {
 
       setLoading(true);
       try {
+        // On utilise une requête SQL brute pour cette table qui n'est pas dans le typage
         const { data, error } = await supabase
-          .from("notifications")
-          .select("*")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
+          .rpc('get_user_notifications', { user_id: user.id })
           .limit(10);
 
         if (error) {
@@ -49,7 +39,7 @@ export default function Notifications() {
         }
 
         if (data) {
-          setNotifications(data);
+          setNotifications(data as Notification[]);
         }
       } catch (error) {
         console.error("Erreur lors du chargement des notifications:", error);
@@ -92,10 +82,9 @@ export default function Notifications() {
 
   const markAsRead = async (notificationId: string) => {
     try {
+      // On utilise une requête SQL brute pour cette table qui n'est pas dans le typage
       const { error } = await supabase
-        .from("notifications")
-        .update({ is_read: true })
-        .eq("id", notificationId);
+        .rpc('mark_notification_as_read', { notification_id: notificationId });
 
       if (error) {
         throw error;
@@ -116,14 +105,9 @@ export default function Notifications() {
     if (notifications.length === 0) return;
     
     try {
+      // On utilise une requête SQL brute pour cette table qui n'est pas dans le typage
       const { error } = await supabase
-        .from("notifications")
-        .update({ is_read: true })
-        .eq("user_id", user?.id)
-        .in(
-          "id",
-          notifications.filter(n => !n.is_read).map(n => n.id)
-        );
+        .rpc('mark_all_notifications_as_read', { uid: user?.id });
 
       if (error) {
         throw error;

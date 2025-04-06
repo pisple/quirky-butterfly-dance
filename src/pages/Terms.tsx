@@ -7,12 +7,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { SiteContent } from "@/types";
 
 const Terms = () => {
   const { contentType } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [content, setContent] = useState({ title: "", content: "" });
+  const [content, setContent] = useState<SiteContent>({ id: "", title: "", content: "", updated_at: "" });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -26,18 +27,16 @@ const Terms = () => {
           : "terms";
       
       try {
+        // On utilise une fonction RPC pour accéder à site_content
         const { data, error } = await supabase
-          .from("site_content")
-          .select("title, content")
-          .eq("id", contentId)
-          .single();
+          .rpc('get_site_content', { content_id: contentId });
           
         if (error) {
           throw error;
         }
         
         if (data) {
-          setContent(data);
+          setContent(data as SiteContent);
         }
       } catch (error) {
         console.error("Erreur lors du chargement du contenu:", error);
