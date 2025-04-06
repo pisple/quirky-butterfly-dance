@@ -50,14 +50,14 @@ const config = {
           foreground: "hsl(var(--card-foreground))",
         },
         // Logo-based color palette
-        "app-blue": "#6E73C9", // Main blue from logo
-        "app-teal": "#80A8B0", // Teal accent from logo
-        "app-green": "#7CA78A", // Green from logo
-        "app-purple": "#9b87f5", // Purple accent
-        "app-orange": "#DCA47C", // Orange-ish accent from logo
-        "app-red": "#D87470",   // Red accent
-        "app-dark": "#444B65",  // Dark blue from logo
-        "app-light": "#F5F7FA", // Light background
+        "app-blue": "#2E753E", // Changed from blue to dark green
+        "app-teal": "#3A8A50", // Changed to green
+        "app-green": "#7CA78A", // Keep existing green
+        "app-purple": "#2E753E", // Changed from purple to dark green
+        "app-orange": "#DCA47C", // Keep orange-ish
+        "app-red": "#D87470",   // Keep red
+        "app-dark": "#444B65",  // Keep dark blue
+        "app-light": "#F0F2F5", // Slightly darker white background
         "sidebar-background": "hsl(var(--sidebar-background))",
         "sidebar-foreground": "hsl(var(--sidebar-foreground))",
         "sidebar-primary": "hsl(var(--sidebar-primary))",
