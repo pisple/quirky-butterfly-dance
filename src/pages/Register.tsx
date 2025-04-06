@@ -120,12 +120,12 @@ const Register = () => {
               <Button 
                 type="button"
                 variant="outline"
-                className={`w-full mb-6 border-2 border-[#e10f20] ${userType === "elderly" ? "text-lg py-6" : ""}`}
+                className={`w-full mb-6 bg-[#ff4713] hover:bg-[#ff4713]/90 text-white font-semibold border-0 ${userType === "elderly" ? "text-lg py-6" : "h-12"}`}
                 onClick={handleItsmeRegistration}
               >
-                <div className="flex items-center justify-center">
-                  <div className="bg-[#e10f20] text-white font-semibold px-2 py-1 rounded mr-2">itsme</div>
-                  <span>S'inscrire avec itsme</span>
+                <div className="flex items-center justify-center gap-2">
+                  <div className="bg-white text-[#ff4713] font-bold rounded-full w-6 h-6 flex items-center justify-center text-sm">its</div>
+                  <span>Commencer</span>
                 </div>
               </Button>
               
