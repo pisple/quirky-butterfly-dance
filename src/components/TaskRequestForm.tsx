@@ -27,6 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { ShoppingCart, ChefHat, Flower, Laptop, Users, MapPin, Calendar, Weight, Store, PillIcon, Cookie, Truck } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { getBelgianCities, getNearestCities } from "@/utils/supabaseRPC";
 
 const taskRequestSchema = z.object({
   type: z.enum(["groceries", "cooking", "gardening", "technology", "accompaniment"], { 
@@ -169,20 +170,17 @@ const TaskRequestForm = () => {
     const loadCities = async () => {
       setIsLoadingCities(true);
       try {
-        const { data, error } = await supabase
-          .rpc('get_belgian_cities');
-          
-        if (error) throw error;
+        const cities = await getBelgianCities();
         
-        if (data) {
-          const cities = data.map((city: any) => ({
+        if (cities && cities.length > 0) {
+          const citiesWithDistance = cities.map(city => ({
             name: city.name,
             latitude: city.latitude,
             longitude: city.longitude,
             distance: undefined
           }));
           
-          setNearbyCities(cities.slice(0, 20));
+          setNearbyCities(citiesWithDistance.slice(0, 20));
         }
       } catch (error) {
         console.error("Erreur lors du chargement des villes:", error);
@@ -193,7 +191,7 @@ const TaskRequestForm = () => {
 
     loadUserProfile();
     loadCities();
-  }, [user, navigate, toast]);
+  }, [user, navigate, toast, form]);
 
   const getCurrentLocation = () => {
     setIsLoadingCities(true);
@@ -203,20 +201,17 @@ const TaskRequestForm = () => {
           const { latitude, longitude } = position.coords;
           
           try {
-            const { data, error } = await supabase
-              .rpc('get_belgian_cities');
-              
-            if (error) throw error;
+            const cities = await getBelgianCities();
             
-            if (data) {
-              const citiesWithDistance = data.map((city: any) => ({
+            if (cities && cities.length > 0) {
+              const citiesWithDistance = cities.map(city => ({
                 name: city.name,
                 latitude: city.latitude,
                 longitude: city.longitude,
                 distance: calculateDistance(latitude, longitude, city.latitude, city.longitude)
               }));
               
-              const sortedCities = citiesWithDistance.sort((a: City, b: City) => 
+              const sortedCities = citiesWithDistance.sort((a, b) => 
                 (a.distance || Infinity) - (b.distance || Infinity));
               
               setNearbyCities(sortedCities.slice(0, 20));
@@ -227,11 +222,11 @@ const TaskRequestForm = () => {
               }
             }
             
-            if (user) {
+            if (user && cities && cities.length > 0) {
               await supabase
                 .from('profiles')
                 .update({
-                  location: data && data.length > 0 ? data[0].name : undefined,
+                  location: cities[0].name,
                 })
                 .eq('id', user.id);
             }

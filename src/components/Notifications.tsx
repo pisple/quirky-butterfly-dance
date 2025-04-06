@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Bell, Check } from "lucide-react";
 import {
@@ -12,6 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Notification } from "@/types";
+import { getUserNotifications, markNotificationAsRead } from "@/utils/supabaseRPC";
 
 export default function Notifications() {
   const { user } = useAuth();
@@ -22,27 +22,17 @@ export default function Notifications() {
 
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
-  // Charger les notifications de l'utilisateur
+  // Load user notifications
   useEffect(() => {
     const fetchNotifications = async () => {
       if (!user?.id) return;
 
       setLoading(true);
       try {
-        // On utilise une requête SQL brute pour cette table qui n'est pas dans le typage
-        const { data, error } = await supabase
-          .rpc('get_user_notifications', { user_id: user.id })
-          .limit(10);
-
-        if (error) {
-          throw error;
-        }
-
-        if (data) {
-          setNotifications(data as Notification[]);
-        }
+        const data = await getUserNotifications(user.id);
+        setNotifications(data);
       } catch (error) {
-        console.error("Erreur lors du chargement des notifications:", error);
+        console.error("Error loading notifications:", error);
       } finally {
         setLoading(false);
       }
@@ -50,7 +40,7 @@ export default function Notifications() {
 
     fetchNotifications();
     
-    // S'abonner aux modifications de notifications
+    // Subscribe to notification changes
     const notificationsSubscription = supabase
       .channel("notifications-changes")
       .on(
@@ -62,12 +52,12 @@ export default function Notifications() {
           filter: `user_id=eq.${user?.id}`,
         },
         (payload) => {
-          // Ajouter la nouvelle notification à la liste
+          // Add new notification to the list
           setNotifications(prev => [payload.new as Notification, ...prev]);
           
-          // Afficher une notification toast
+          // Show toast notification
           toast({
-            title: "Nouvelle notification",
+            title: "New notification",
             description: (payload.new as Notification).message,
           });
         }
@@ -75,29 +65,25 @@ export default function Notifications() {
       .subscribe();
       
     return () => {
-      // Se désabonner lorsque le composant est démonté
+      // Unsubscribe when component unmounts
       supabase.removeChannel(notificationsSubscription);
     };
   }, [user?.id, toast]);
 
   const markAsRead = async (notificationId: string) => {
     try {
-      // On utilise une requête SQL brute pour cette table qui n'est pas dans le typage
-      const { error } = await supabase
-        .rpc('mark_notification_as_read', { notification_id: notificationId });
+      const success = await markNotificationAsRead(notificationId);
 
-      if (error) {
-        throw error;
+      if (success) {
+        // Update local state
+        setNotifications(
+          notifications.map(n =>
+            n.id === notificationId ? { ...n, is_read: true } : n
+          )
+        );
       }
-
-      // Mettre à jour l'état local
-      setNotifications(
-        notifications.map(n =>
-          n.id === notificationId ? { ...n, is_read: true } : n
-        )
-      );
     } catch (error) {
-      console.error("Erreur lors du marquage de la notification:", error);
+      console.error("Error marking notification as read:", error);
     }
   };
 
@@ -105,25 +91,24 @@ export default function Notifications() {
     if (notifications.length === 0) return;
     
     try {
-      // On utilise une requête SQL brute pour cette table qui n'est pas dans le typage
-      const { error } = await supabase
-        .rpc('mark_all_notifications_as_read', { uid: user?.id });
-
-      if (error) {
-        throw error;
+      // For each unread notification, mark it as read
+      const unreadNotifications = notifications.filter(n => !n.is_read);
+      
+      for (const notification of unreadNotifications) {
+        await markNotificationAsRead(notification.id);
       }
 
-      // Mettre à jour l'état local
+      // Update local state
       setNotifications(
         notifications.map(n => ({ ...n, is_read: true }))
       );
       
       toast({
         title: "Notifications",
-        description: "Toutes les notifications ont été marquées comme lues.",
+        description: "All notifications have been marked as read.",
       });
     } catch (error) {
-      console.error("Erreur lors du marquage des notifications:", error);
+      console.error("Error marking notifications as read:", error);
     }
   };
 
@@ -166,16 +151,16 @@ export default function Notifications() {
               onClick={markAllAsRead}
               disabled={loading}
             >
-              Tout marquer comme lu
+              Mark all as read
             </Button>
           )}
         </div>
         <div className="max-h-80 overflow-y-auto">
           {loading ? (
-            <div className="p-4 text-center text-gray-500">Chargement...</div>
+            <div className="p-4 text-center text-gray-500">Loading...</div>
           ) : notifications.length === 0 ? (
             <div className="p-4 text-center text-gray-500">
-              Aucune notification
+              No notifications
             </div>
           ) : (
             notifications.map((notification) => (
@@ -203,7 +188,7 @@ export default function Notifications() {
                       onClick={() => markAsRead(notification.id)}
                     >
                       <Check size={14} />
-                      <span className="sr-only">Marquer comme lu</span>
+                      <span className="sr-only">Mark as read</span>
                     </Button>
                   )}
                 </div>

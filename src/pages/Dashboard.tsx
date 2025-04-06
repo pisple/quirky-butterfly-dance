@@ -11,7 +11,7 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { adaptTasksFromDB } from "@/utils/taskAdapter";
+import { adaptTasksFromDB, adaptTaskFromDB } from "@/utils/taskAdapter";
 
 const Dashboard = () => {
   const location = useLocation();
@@ -70,12 +70,14 @@ const Dashboard = () => {
         (payload) => {
           if (payload.eventType === 'INSERT') {
             if (user.type === 'helper' || (user.type === 'elderly' && payload.new.requested_by === user.id)) {
-              setTasks(current => [payload.new as Task, ...current]);
+              const newTask = adaptTaskFromDB(payload.new);
+              setTasks(current => [newTask, ...current]);
             }
           } else if (payload.eventType === 'UPDATE') {
+            const updatedTask = adaptTaskFromDB(payload.new);
             setTasks(current => 
               current.map(task => 
-                task.id === payload.new.id ? (payload.new as Task) : task
+                task.id === updatedTask.id ? updatedTask : task
               )
             );
           } else if (payload.eventType === 'DELETE') {
@@ -109,7 +111,7 @@ const Dashboard = () => {
       
       setTasks(tasks.map(task => 
         task.id === taskId 
-          ? { ...task, status: newStatus, helper_assigned: updates.helper_assigned || task.helper_assigned } 
+          ? { ...task, status: newStatus, helperAssigned: updates.helper_assigned || task.helperAssigned } 
           : task
       ));
       
@@ -143,8 +145,9 @@ const Dashboard = () => {
   };
   
   const countTasksByStatus = (status: string) => {
-    return tasks.filter(t => t.status === status && (userType === "helper" || t.requested_by === user?.id)).length;
+    return tasks.filter(t => t.status === status && (userType === "helper" || t.requestedBy === user?.id)).length;
   };
+  
   
   return (
     <div className={`flex flex-col min-h-screen ${userType === "elderly" ? "elderly-mode" : ""}`}>

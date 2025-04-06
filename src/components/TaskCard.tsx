@@ -22,15 +22,15 @@ const TaskCard = ({ task, userType, onTaskUpdate }: TaskCardProps) => {
   const [showMap, setShowMap] = useState(false);
   const [requesterName, setRequesterName] = useState<string>("");
   
-  // Charger le nom du demandeur pour les aidants
+  // Load the requester name for helpers
   useEffect(() => {
-    if (userType === "helper" && task.requested_by) {
+    if (userType === "helper" && task.requestedBy) {
       const fetchRequester = async () => {
         try {
           const { data, error } = await supabase
             .from('profiles')
             .select('name')
-            .eq('id', task.requested_by)
+            .eq('id', task.requestedBy)
             .single();
             
           if (error) throw error;
@@ -39,14 +39,14 @@ const TaskCard = ({ task, userType, onTaskUpdate }: TaskCardProps) => {
             setRequesterName(data.name);
           }
         } catch (error) {
-          console.error("Erreur lors du chargement du nom du demandeur:", error);
+          console.error("Error loading requester name:", error);
           setRequesterName("Senior");
         }
       };
       
       fetchRequester();
     }
-  }, [task.requested_by, userType]);
+  }, [task.requestedBy, userType]);
   
   const handleAccept = () => {
     if (onTaskUpdate) {
@@ -123,11 +123,11 @@ const TaskCard = ({ task, userType, onTaskUpdate }: TaskCardProps) => {
     return null;
   }
 
-  // Vérifier si l'utilisateur est l'aidant assigné à cette tâche
-  const isAssignedHelper = user && task.helper_assigned === user.id;
+  // Check if the user is the helper assigned to this task
+  const isAssignedHelper = user && task.helperAssigned === user.id;
   
-  // Vérifier si l'utilisateur est le demandeur de cette tâche
-  const isRequester = user && task.requested_by === user.id;
+  // Check if the user is the requester of this task
+  const isRequester = user && task.requestedBy === user.id;
 
   return (
     <Card className="w-full">
@@ -162,7 +162,7 @@ const TaskCard = ({ task, userType, onTaskUpdate }: TaskCardProps) => {
           </div>
           <div className="flex items-center gap-2 mt-1">
             <Clock size={16} />
-            <span>Date: {new Date(task.requested_date).toLocaleDateString()}</span>
+            <span>Date: {new Date(task.requestedDate).toLocaleDateString()}</span>
           </div>
         </div>
         {userType === "helper" && requesterName && (
