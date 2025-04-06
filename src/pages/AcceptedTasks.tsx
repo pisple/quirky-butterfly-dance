@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -38,8 +39,12 @@ const AcceptedTasks = () => {
     if (!user) return;
     
     if (userType === "elderly") {
-      // For elderly, get tasks they requested
-      const userTasks = getUserTasks(user.id, "requestedBy");
+      // For elderly, get all of their tasks including those waiting for approval
+      const allTasks = getAllTasks();
+      const userTasks = allTasks.filter(task => 
+        task.requestedBy === user.id || 
+        (task.status === "waiting_approval" && task.requestedBy === user.id)
+      );
       setTasks(userTasks);
     } else {
       // For helpers, load all available pending tasks plus their assigned tasks

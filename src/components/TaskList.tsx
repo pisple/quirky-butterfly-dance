@@ -141,7 +141,7 @@ const TaskList = ({ tasks, userType, onTaskUpdate }: TaskListProps) => {
     displayedTasks = sortTasksByProximity(tasksBeforeSorting);
   }
   
-  if (availableTasks.length === 0) {
+  if (displayedTasks.length === 0) {
     return (
       <div className={`text-center p-8 ${userType === "elderly" ? "text-xl" : "text-lg"}`}>
         {userType === "helper" 
@@ -156,9 +156,15 @@ const TaskList = ({ tasks, userType, onTaskUpdate }: TaskListProps) => {
       {userType === "helper" && (
         <Tabs defaultValue="available" className="w-full mb-6" onValueChange={(value) => setActiveTab(value)}>
           <TabsList className="grid w-full grid-cols-3 mb-4">
-            <TabsTrigger value="available">Tâches disponibles</TabsTrigger>
-            <TabsTrigger value="waiting">En attente</TabsTrigger>
-            <TabsTrigger value="accepted">Tâches acceptées</TabsTrigger>
+            <TabsTrigger value="available">
+              Tâches disponibles {pendingTasks.length > 0 && `(${pendingTasks.length})`}
+            </TabsTrigger>
+            <TabsTrigger value="waiting">
+              En attente {waitingApprovalTasks.length > 0 && `(${waitingApprovalTasks.length})`}
+            </TabsTrigger>
+            <TabsTrigger value="accepted">
+              Tâches acceptées {assignedTasks.length > 0 && `(${assignedTasks.length})`}
+            </TabsTrigger>
           </TabsList>
         </Tabs>
       )}

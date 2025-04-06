@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
@@ -167,7 +166,15 @@ const Dashboard = () => {
     if (userType === "elderly") {
       return tasks.filter(t => t.status === status && t.requestedBy === user?.id).length;
     } else {
-      return tasks.filter(t => t.status === status).length;
+      if (status === "pending") {
+        return tasks.filter(t => t.status === status).length;
+      } else if (status === "assigned") {
+        return tasks.filter(t => t.status === status && t.helperAssigned === user?.id).length;
+      } else if (status === "waiting_approval") {
+        return tasks.filter(t => t.status === status && t.helperAssigned === user?.id).length;
+      } else {
+        return tasks.filter(t => t.status === status).length;
+      }
     }
   };
   
@@ -211,15 +218,15 @@ const Dashboard = () => {
           <Card>
             <CardHeader>
               <CardTitle className={userType === "elderly" ? "text-xl" : ""}>
-                {userType === "elderly" ? "Aides acceptées" : "Mes tâches"}
+                {userType === "elderly" ? "Propositions d'aide" : "Mes propositions"}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className={`text-3xl font-bold ${userType === "elderly" ? "text-4xl" : ""}`}>
-                {countTasksByStatus("assigned")}
+                {countTasksByStatus("waiting_approval")}
               </p>
               <p className="text-gray-600">
-                {userType === "elderly" ? "tâches avec un aidant" : "tâches que vous avez acceptées"}
+                {userType === "elderly" ? "en attente de confirmation" : "en attente de confirmation"}
               </p>
               <Button
                 className="w-full mt-4 bg-app-blue hover:bg-app-blue/90"
@@ -230,38 +237,35 @@ const Dashboard = () => {
             </CardContent>
           </Card>
           
-          {userType === "helper" ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Mes points</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold">{helperPoints}</p>
-                <p className="text-gray-600">
-                  points gagnés
-                </p>
-                <p className="mt-2 text-sm text-gray-500">
-                  Vous gagnez 50 points par tâche complétée
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle className={userType === "elderly" ? "text-xl" : ""}>
-                  Aide reçue
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className={`text-3xl font-bold ${userType === "elderly" ? "text-4xl" : ""}`}>
-                  {countTasksByStatus("completed")}
-                </p>
-                <p className="text-gray-600">
-                  tâches complétées
-                </p>
-              </CardContent>
-            </Card>
-          )}
+          <Card>
+            <CardHeader>
+              <CardTitle className={userType === "elderly" ? "text-xl" : ""}>
+                {userType === "helper" ? "Mes points" : "Aide reçue"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {userType === "helper" ? (
+                <>
+                  <p className="text-3xl font-bold">{helperPoints}</p>
+                  <p className="text-gray-600">
+                    points gagnés
+                  </p>
+                  <p className="mt-2 text-sm text-gray-500">
+                    Vous gagnez 50 points par tâche complétée
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className={`text-3xl font-bold ${userType === "elderly" ? "text-4xl" : ""}`}>
+                    {countTasksByStatus("completed")}
+                  </p>
+                  <p className="text-gray-600">
+                    tâches complétées
+                  </p>
+                </>
+              )}
+            </CardContent>
+          </Card>
         </div>
         
         <h2 className="text-xl md:text-2xl font-bold mb-6">
