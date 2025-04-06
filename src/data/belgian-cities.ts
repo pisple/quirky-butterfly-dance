@@ -266,5 +266,3 @@ export const BELGIAN_CITIES = [
   { name: "Visé", latitude: 50.7386, longitude: 5.7017 },
   { name: "Vresse-sur-Semois", latitude: 49.8667, longitude: 4.8667 }
 ];
-
-export default BELGIAN_CITIES; // Add a default export as well for compatibility

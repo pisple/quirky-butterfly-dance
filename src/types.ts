@@ -33,7 +33,6 @@ export interface DbTask {
   keywords: string[];
   location: string;
   requested_by: string;
-  requested_by_name?: string;
   requested_date: string;
   status: string;
   helper_assigned?: string;

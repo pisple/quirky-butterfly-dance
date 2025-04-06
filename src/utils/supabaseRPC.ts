@@ -47,9 +47,11 @@ export async function getHelperPoints(helperId: string): Promise<number> {
 
 export async function updateHelperPoints(helperId: string, pointsToAdd: number): Promise<number> {
   try {
+    // First, get current points
     const currentPoints = await getHelperPoints(helperId);
     const newPoints = currentPoints + pointsToAdd;
     
+    // Update points
     const { error } = await supabase
       .from("helper_points")
       .upsert({
@@ -140,7 +142,6 @@ export async function createNotification(
 // Tasks operations
 export async function getTasks(): Promise<Task[]> {
   try {
-    console.log("Fetching all tasks from Supabase");
     const { data, error } = await supabase
       .from("tasks")
       .select("*")
@@ -148,10 +149,9 @@ export async function getTasks(): Promise<Task[]> {
 
     if (error) {
       console.error("Error fetching tasks:", error);
-      throw error;
+      return [];
     }
 
-    console.log("Successfully fetched tasks from Supabase:", data);
     return (data || []).map(adaptTaskFromDb);
   } catch (error) {
     console.error(`Error in getTasks:`, error);
@@ -163,7 +163,6 @@ export async function getTasksByUser(userId: string, type: "requestedBy" | "help
   const dbField = type === "requestedBy" ? "requested_by" : "helper_assigned";
   
   try {
-    console.log(`Fetching tasks for user ${userId} with field ${dbField}`);
     const { data, error } = await supabase
       .from("tasks")
       .select("*")
@@ -172,10 +171,9 @@ export async function getTasksByUser(userId: string, type: "requestedBy" | "help
 
     if (error) {
       console.error(`Error fetching tasks for user ${userId}:`, error);
-      throw error;
+      return [];
     }
 
-    console.log(`Successfully fetched tasks for user ${userId}:`, data);
     return (data || []).map(adaptTaskFromDb);
   } catch (error) {
     console.error(`Error in getTasksByUser:`, error);
@@ -183,21 +181,19 @@ export async function getTasksByUser(userId: string, type: "requestedBy" | "help
   }
 }
 
-export async function createTask(task: Omit<Task, "id">): Promise<Task | null> {
+export async function createTask(task: Task): Promise<Task | null> {
   try {
-    // Creating a task object that matches the database schema
     const dbTask = {
       type: task.type,
       keywords: task.keywords,
       location: task.location,
       requested_by: task.requestedBy,
-      requested_by_name: task.requestedByName || "",
       requested_date: task.requestedDate,
       status: task.status,
-      helper_assigned: task.helperAssigned || null
+      helper_assigned: task.helperAssigned
     };
     
-    console.log("Creating task in Supabase:", dbTask);
+    console.log("Creating task:", dbTask);
     
     const { data, error } = await supabase
       .from("tasks")
@@ -207,22 +203,19 @@ export async function createTask(task: Omit<Task, "id">): Promise<Task | null> {
 
     if (error) {
       console.error("Error creating task:", error);
-      console.error("Error details:", error.details);
-      console.error("Error hint:", error.hint);
-      console.error("Error message:", error.message);
-      throw error;
+      return null;
     }
 
-    console.log("Successfully created task in Supabase:", data);
     return adaptTaskFromDb(data as DbTask);
   } catch (error) {
     console.error(`Error in createTask:`, error);
-    throw error; // Re-throw to propagate to caller for better error handling
+    return null;
   }
 }
 
 export async function updateTask(taskId: string, updates: Partial<Task>): Promise<boolean> {
   try {
+    // Convert camelCase properties to snake_case for DB
     const dbUpdates: Record<string, any> = {};
     
     if (updates.helperAssigned !== undefined) dbUpdates.helper_assigned = updates.helperAssigned;
@@ -231,11 +224,8 @@ export async function updateTask(taskId: string, updates: Partial<Task>): Promis
     if (updates.location !== undefined) dbUpdates.location = updates.location;
     if (updates.requestedDate !== undefined) dbUpdates.requested_date = updates.requestedDate;
     if (updates.type !== undefined) dbUpdates.type = updates.type;
-    if (updates.requestedByName !== undefined) dbUpdates.requested_by_name = updates.requestedByName;
     
     dbUpdates.updated_at = new Date().toISOString();
-
-    console.log("Updating task in Supabase:", taskId, dbUpdates);
 
     const { error } = await supabase
       .from("tasks")
@@ -244,13 +234,9 @@ export async function updateTask(taskId: string, updates: Partial<Task>): Promis
 
     if (error) {
       console.error("Error updating task:", error);
-      console.error("Error details:", error.details);
-      console.error("Error hint:", error.hint);
-      console.error("Error message:", error.message);
       return false;
     }
 
-    console.log("Task successfully updated in Supabase");
     return true;
   } catch (error) {
     console.error(`Error in updateTask:`, error);

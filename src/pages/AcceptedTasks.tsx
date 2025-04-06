@@ -1,115 +1,178 @@
-
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import TaskCard from "@/components/TaskCard"; // Fixed: Changed from named import to default import
-import { useToast } from "@/hooks/use-toast";
+import TaskList from "@/components/TaskList";
 import { Task, UserType } from "@/types";
+import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { getTasksByUser, updateTask } from "@/utils/supabaseRPC";
-import * as localTaskStorage from "@/utils/localTaskStorage";
-import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
+import { getUserTasks, updateLocalTask, updateHelperPoints, getAllTasks } from "@/utils/localTaskStorage";
+import { getTasks, getTasksByUser, updateTask, updateHelperPoints as updateSupabaseHelperPoints } from "@/utils/supabaseRPC";
 
 const AcceptedTasks = () => {
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [userType, setUserType] = useState<UserType>("helper");
-  const { toast } = useToast();
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const [userType, setUserType] = useState<UserType>("helper");
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
   
   useEffect(() => {
-    // Get user type from localStorage
-    const savedUserType = localStorage.getItem("userType");
-    if (savedUserType === "elderly" || savedUserType === "helper") {
-      setUserType(savedUserType);
+    if (!user) {
+      toast({
+        title: "Veuillez vous connecter",
+        description: "Vous devez être connecté pour accéder à cette page.",
+      });
+      navigate("/login");
+      return;
     }
-  }, []);
-  
-  useEffect(() => {
-    const fetchTasks = async () => {
-      if (!user) return;
-      
-      setLoading(true);
-      try {
-        // Get tasks that this user has accepted (as helper)
-        console.log("Fetching accepted tasks for user:", user.id);
-        let fetchedTasks: Task[] = [];
-        
-        try {
-          // Try to get from Supabase first
-          fetchedTasks = await getTasksByUser(user.id, "helperAssigned");
-          console.log("Fetched tasks from Supabase:", fetchedTasks);
-        } catch (error) {
-          console.error("Error fetching tasks from Supabase:", error);
-          // Fall back to local storage
-          fetchedTasks = localTaskStorage.getUserTasks(user.id, "helperAssigned");
-          console.log("Fetched tasks from local storage:", fetchedTasks);
-        }
-        
-        setTasks(fetchedTasks);
-      } catch (error) {
-        console.error("Error in fetchTasks:", error);
-        toast({
-          title: "Erreur",
-          description: "Impossible de récupérer vos tâches acceptées.",
-          variant: "destructive"
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
 
-    fetchTasks();
-  }, [user, toast]);
+    // Set user type
+    if (user.type) {
+      setUserType(user.type as UserType);
+    }
+    
+    // Load tasks
+    loadTasks();
+  }, [user, navigate, toast]);
   
-  const handleMarkAsComplete = async (taskId: string) => {
+  const loadTasks = async () => {
+    if (!user) return;
+    setIsLoading(true);
+    
     try {
-      console.log("Marking task as complete:", taskId);
-      let success = false;
+      // First try to get tasks from Supabase
+      let loadedTasks: Task[] = [];
       
-      try {
-        // Try to update in Supabase first
-        success = await updateTask(taskId, { status: "completed" });
-        console.log("Updated task in Supabase:", success);
-      } catch (error) {
-        console.error("Error updating task in Supabase:", error);
-        // Fall back to local storage
-        success = localTaskStorage.updateLocalTask(taskId, { status: "completed" });
-        console.log("Updated task in local storage:", success);
-      }
-      
-      if (success) {
-        // Update local state
-        setTasks(prev => 
-          prev.map(task => 
-            task.id === taskId ? { ...task, status: "completed" } : task
-          )
-        );
+      if (userType === "helper") {
+        // For helpers, load all pending tasks (created by seniors) and their assigned tasks
+        const allTasks = await getTasks().catch(() => []);
         
-        // Show success message
-        toast({
-          title: "Tâche terminée",
-          description: "La tâche a été marquée comme terminée.",
-        });
-        
-        // Add points to helper
-        if (user) {
-          try {
-            // Points logic here (using either Supabase or local storage)
-            const updatedPoints = localTaskStorage.updateHelperPoints(user.id, 10);
-            console.log("Updated helper points:", updatedPoints);
-          } catch (error) {
-            console.error("Error updating helper points:", error);
-          }
+        if (allTasks.length > 0) {
+          // Filter tasks for helpers: show pending tasks and tasks assigned to them
+          loadedTasks = allTasks.filter(task => 
+            // Show all pending tasks (available for help)
+            (task.status === "pending") ||
+            // Or show tasks assigned to this helper or waiting approval
+            (task.helperAssigned === user.id && 
+             (task.status === "assigned" || task.status === "waiting_approval"))
+          );
         }
       } else {
-        throw new Error("Failed to update task");
+        // For elderly, show all their tasks including those waiting for approval
+        console.log("Attempting to fetch tasks for elderly user:", user.id);
+        const userTasks = await getTasksByUser(user.id, "requestedBy").catch(() => []);
+        
+        if (userTasks.length > 0) {
+          console.log("Tasks fetched from Supabase for elderly:", userTasks);
+          loadedTasks = userTasks;
+        }
       }
+      
+      // If no tasks loaded from Supabase, fall back to local storage
+      if (loadedTasks.length === 0) {
+        console.log("Falling back to local storage for tasks");
+        
+        if (userType === "elderly") {
+          // For seniors, get all their tasks including those waiting for approval
+          const allTasks = getAllTasks();
+          loadedTasks = allTasks.filter(task => task.requestedBy === user.id);
+          console.log("Loaded tasks from local storage for elderly:", loadedTasks);
+        } else {
+          // For helpers, get all tasks (including those created by seniors)
+          const allTasks = getAllTasks();
+          
+          // Show all pending tasks (available for help) and tasks assigned to this helper
+          loadedTasks = allTasks.filter(task => 
+            // Show all pending tasks
+            (task.status === "pending") ||
+            // Or show tasks assigned to this helper
+            (task.helperAssigned === user.id && 
+             (task.status === "assigned" || task.status === "waiting_approval"))
+          );
+        }
+      }
+      
+      console.log("Final loaded tasks for user:", user.id, "userType:", userType, "tasks:", loadedTasks);
+      
+      setTasks(loadedTasks);
     } catch (error) {
-      console.error("Error marking task as complete:", error);
+      console.error("Error loading tasks:", error);
       toast({
         title: "Erreur",
-        description: "Impossible de marquer la tâche comme terminée.",
+        description: "Impossible de charger les tâches. Veuillez réessayer.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleTaskUpdate = async (taskId: string, status: "pending" | "waiting_approval" | "assigned" | "completed" | "cancelled") => {
+    if (!user) return;
+    
+    try {
+      // Try to update in Supabase first
+      const success = await updateTask(taskId, { status });
+      
+      if (!success) {
+        // Fall back to local storage if Supabase update fails
+        console.log("Falling back to local storage for task update");
+        updateLocalTask(taskId, { status });
+      }
+      
+      // Update local state
+      const updatedTasks = tasks.map(task => 
+        task.id === taskId ? { ...task, status } : task
+      );
+      
+      setTasks(updatedTasks);
+      
+      if (status === "completed") {
+        // Add 50 points for the helper when a task is completed
+        if (userType === "helper" && user.id) {
+          let newPoints = 0;
+          
+          try {
+            // Try Supabase first
+            newPoints = await updateSupabaseHelperPoints(user.id, 50);
+          } catch (error) {
+            // Fall back to local storage
+            console.log("Falling back to local storage for helper points");
+            newPoints = updateHelperPoints(user.id, 50);
+          }
+          
+          toast({
+            title: "Tâche terminée",
+            description: `La tâche a été marquée comme terminée avec succès. Vous avez gagné 50 points! Vous avez maintenant ${newPoints} points au total.`
+          });
+        } else {
+          toast({
+            title: "Tâche terminée",
+            description: "La tâche a été marquée comme terminée avec succès."
+          });
+        }
+      } else if (status === "cancelled") {
+        toast({
+          title: "Tâche annulée",
+          description: "La tâche a été annulée avec succès."
+        });
+      } else if (status === "waiting_approval") {
+        toast({
+          title: "Proposition envoyée",
+          description: "Votre proposition d'aide a été envoyée au senior."
+        });
+      } else if (status === "assigned") {
+        toast({
+          title: "Aide confirmée",
+          description: "Le senior a confirmé votre aide."
+        });
+      }
+    } catch (error) {
+      console.error("Error updating task:", error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de mettre à jour la tâche. Veuillez réessayer.",
         variant: "destructive"
       });
     }
@@ -120,46 +183,16 @@ const AcceptedTasks = () => {
       <Header userType={userType} />
       
       <main className="flex-grow container mx-auto px-4 py-8">
-        <h1 className="text-2xl md:text-3xl font-bold mb-8 text-center">
-          Mes tâches acceptées
+        <h1 className="text-2xl md:text-3xl font-bold mb-8">
+          {userType === "elderly" ? "Mes demandes en cours" : "Tâches disponibles"}
         </h1>
         
-        {loading ? (
-          <div className="flex justify-center items-center h-40">
-            <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-app-blue"></div>
-          </div>
-        ) : tasks.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {tasks.map(task => (
-              <TaskCard 
-                key={task.id} 
-                task={task}
-                userType={userType}
-                action={
-                  task.status === "assigned" ? ( // Fixed: Changed from "in-progress" to "assigned"
-                    <Button
-                      onClick={() => handleMarkAsComplete(task.id)}
-                      className="bg-green-600 hover:bg-green-700"
-                    >
-                      Marquer comme terminée
-                    </Button>
-                  ) : null
-                }
-              />
-            ))}
+        {isLoading ? (
+          <div className="flex justify-center py-12">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-app-blue"></div>
           </div>
         ) : (
-          <div className="text-center py-12">
-            <p className="text-lg text-gray-600">
-              Vous n'avez pas encore accepté de tâches.
-            </p>
-            <Button
-              onClick={() => window.location.href = "/dashboard"}
-              className="mt-4 bg-app-blue hover:bg-app-blue/90"
-            >
-              Voir les demandes disponibles
-            </Button>
-          </div>
+          <TaskList tasks={tasks} userType={userType} onTaskUpdate={handleTaskUpdate} />
         )}
       </main>
       

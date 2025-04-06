@@ -28,8 +28,8 @@ export const getAvailableTasks = (): Task[] => {
   return allTasks.filter(task => task.status === "pending");
 };
 
-// Create a new task in local storage
-export const createLocalTask = (task: Omit<Task, "id">): string => {
+// Créer une nouvelle tâche
+export const createLocalTask = (task: Omit<Task, "id">): Task => {
   const allTasks = getAllTasks();
   
   const newTask: Task = {
@@ -40,7 +40,7 @@ export const createLocalTask = (task: Omit<Task, "id">): string => {
   allTasks.push(newTask);
   localStorage.setItem("tasks", JSON.stringify(allTasks));
   
-  return newTask.id;
+  return newTask;
 };
 
 // Mettre à jour une tâche existante
