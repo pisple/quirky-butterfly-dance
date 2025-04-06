@@ -1,12 +1,12 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { UserType } from "@/types";
 import { z } from "zod";
 import {
@@ -19,7 +19,6 @@ import {
 } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { supabase } from "@/integrations/supabase/client";
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Email invalide" }),
@@ -30,8 +29,9 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 const Login = () => {
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const { signIn } = useAuth();
   const [userType, setUserType] = useState<UserType>("elderly");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -42,58 +42,14 @@ const Login = () => {
   });
 
   const onSubmit = async (data: LoginFormValues) => {
-    console.log("Login data:", data);
-    
     try {
-      // Connexion via Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: data.email,
-        password: data.password,
-      });
-      
-      if (authError) {
-        throw authError;
-      }
-      
-      if (!authData.user) {
-        throw new Error("Identifiants invalides");
-      }
-      
-      // Récupérer les informations du profil utilisateur
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', authData.user.id)
-        .single();
-        
-      if (profileError) {
-        console.error("Erreur lors de la récupération du profil:", profileError);
-      }
-      
-      // Utiliser le type d'utilisateur du profil ou celui sélectionné dans le formulaire
-      const actualUserType = profileData?.type as UserType || userType;
-      
-      // Stocker les informations utilisateur dans localStorage pour compatibilité
-      localStorage.setItem("userType", actualUserType);
-      localStorage.setItem("userEmail", data.email);
-      localStorage.setItem("userId", authData.user.id);
-      localStorage.setItem("userName", profileData?.name || "");
-      localStorage.setItem("isLoggedIn", "true");
-      
-      toast({
-        title: "Connexion réussie",
-        description: "Bienvenue sur Gener-Action !",
-      });
-      
-      // Rediriger vers le tableau de bord
-      navigate("/dashboard", { state: { userType: actualUserType } });
-    } catch (error: any) {
+      setIsSubmitting(true);
+      await signIn(data.email, data.password, userType);
+      navigate("/dashboard", { state: { userType } });
+    } catch (error) {
       console.error("Erreur de connexion:", error);
-      toast({
-        title: "Erreur de connexion",
-        description: error.message || "Identifiants invalides",
-        variant: "destructive"
-      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
   
@@ -177,8 +133,9 @@ const Login = () => {
                   <Button 
                     type="submit" 
                     className={`w-full bg-app-blue hover:bg-app-blue/90 ${userType === "elderly" ? "text-lg py-6" : ""}`}
+                    disabled={isSubmitting}
                   >
-                    Se connecter
+                    {isSubmitting ? "Connexion..." : "Se connecter"}
                   </Button>
                   
                   <div className="text-center">

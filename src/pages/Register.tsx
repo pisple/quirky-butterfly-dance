@@ -6,7 +6,7 @@ import Footer from "@/components/Footer";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { UserType } from "@/types";
 import { z } from "zod";
 import {
@@ -19,8 +19,6 @@ import {
 } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { supabase } from "@/integrations/supabase/client";
-import { v4 as uuidv4 } from 'uuid';
 
 const registerSchema = z.object({
   name: z.string().min(2, { message: "Le nom est trop court" }),
@@ -35,8 +33,9 @@ type RegisterFormValues = z.infer<typeof registerSchema>;
 
 const Register = () => {
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const { signUp } = useAuth();
   const [userType, setUserType] = useState<UserType>("elderly");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
@@ -49,77 +48,20 @@ const Register = () => {
   });
 
   const onSubmit = async (data: RegisterFormValues) => {
-    console.log("Register data:", data);
-    
     try {
-      // Créer un utilisateur dans Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: data.email,
-        password: data.password,
-        options: {
-          data: {
-            name: data.name,
-            age: parseInt(data.age),
-            type: userType
-          },
-        }
-      });
-      
-      if (authError) {
-        throw authError;
-      }
-      
-      if (!authData.user) {
-        throw new Error("Échec de la création du compte");
-      }
-      
-      const userId = authData.user.id;
-      
-      // Créer un profil utilisateur dans la table profiles
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          id: userId,
-          name: data.name,
-          age: parseInt(data.age),
-          type: userType
-        });
-        
-      if (profileError) {
-        throw profileError;
-      }
-      
-      // Si c'est un aidant, initialiser les points
-      if (userType === "helper") {
-        const { error: pointsError } = await supabase
-          .from('helper_points')
-          .insert({ helper_id: userId, points: 0 });
-          
-        if (pointsError) {
-          console.error("Erreur lors de l'initialisation des points:", pointsError);
-        }
-      }
-      
-      // Stocker également les informations de session de l'utilisateur dans localStorage pour compatibilité
-      localStorage.setItem("userId", userId);
-      localStorage.setItem("userName", data.name);
-      localStorage.setItem("userEmail", data.email);
-      localStorage.setItem("userType", userType);
-      localStorage.setItem("isLoggedIn", "true");
-      
-      toast({
-        title: "Inscription réussie",
-        description: "Bienvenue sur Gener-Action !",
-      });
-      
+      setIsSubmitting(true);
+      await signUp(
+        data.name, 
+        data.email, 
+        data.password, 
+        Number(data.age), 
+        userType
+      );
       navigate("/dashboard", { state: { userType } });
-    } catch (error: any) {
+    } catch (error) {
       console.error("Erreur d'inscription:", error);
-      toast({
-        title: "Erreur d'inscription",
-        description: error.message || "Une erreur est survenue lors de l'inscription",
-        variant: "destructive"
-      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
   
@@ -243,8 +185,9 @@ const Register = () => {
                   <Button 
                     type="submit" 
                     className={`w-full bg-app-blue hover:bg-app-blue/90 ${userType === "elderly" ? "text-lg py-6" : ""}`}
+                    disabled={isSubmitting}
                   >
-                    S'inscrire
+                    {isSubmitting ? "Inscription..." : "S'inscrire"}
                   </Button>
                   
                   <div className="text-center">

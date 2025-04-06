@@ -1,76 +1,76 @@
 
 import { useEffect, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import TaskList from "@/components/TaskList";
-import { Task, UserType, HelperPoints } from "@/types";
+import { Task, UserType } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { getTasks, getTasksByUser, updateTask, getHelperPoints } from "@/utils/supabaseRPC";
+import Notifications from "@/components/Notifications";
 
 const Dashboard = () => {
-  const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [userType, setUserType] = useState<UserType>("elderly");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [helperPoints, setHelperPoints] = useState<number>(0);
+  const [loading, setLoading] = useState(true);
   
   useEffect(() => {
-    // Get user type from location state or default to elderly
-    const stateUserType = location.state?.userType as UserType;
-    if (stateUserType) {
-      setUserType(stateUserType);
-      localStorage.setItem("userType", stateUserType);
-    } else {
-      // Try to get from localStorage
-      const savedUserType = localStorage.getItem("userType");
-      if (savedUserType === "elderly" || savedUserType === "helper") {
-        setUserType(savedUserType as UserType);
-      } else {
-        // If no user type is found, show welcome message
-        toast({
-          title: "Bienvenue sur Gener-Action",
-          description: "Veuillez vous connecter pour commencer.",
-        });
-        navigate("/login");
-      }
+    if (!user) {
+      toast({
+        title: "Veuillez vous connecter",
+        description: "Vous devez être connecté pour accéder à cette page.",
+      });
+      navigate("/login");
+      return;
+    }
+
+    // Set user type
+    if (user.type) {
+      setUserType(user.type as UserType);
     }
     
-    // Load tasks from localStorage
-    const loadTasks = () => {
-      const storedTasks = localStorage.getItem("tasks");
-      if (storedTasks) {
-        setTasks(JSON.parse(storedTasks));
-      }
-    };
+    loadData();
+  }, [user, navigate, toast]);
+
+  const loadData = async () => {
+    if (!user) return;
     
-    // Load points for helpers from Supabase
-    const loadHelperPoints = async () => {
+    setLoading(true);
+    
+    try {
+      // Load tasks
+      let userTasks: Task[] = [];
+      
+      if (userType === "elderly") {
+        // Senior users see their own tasks
+        userTasks = await getTasksByUser(user.id, "requestedBy");
+      } else {
+        // Helpers see all tasks plus their accepted tasks
+        const allTasks = await getTasks();
+        const acceptedTasks = await getTasksByUser(user.id, "helperAssigned");
+        
+        // Merge and deduplicate tasks
+        const tasksMap = new Map<string, Task>();
+        [...allTasks, ...acceptedTasks].forEach(task => {
+          tasksMap.set(task.id, task);
+        });
+        
+        userTasks = Array.from(tasksMap.values());
+      }
+      
+      setTasks(userTasks);
+      
+      // Load points for helpers
       if (userType === "helper") {
-        const userId = localStorage.getItem("userId");
-        if (userId) {
-          try {
-            const { data, error } = await supabase
-              .from("helper_points")
-              .select("*")
-              .eq("helper_id", userId)
-              .maybeSingle();
-              
-            if (error && error.code !== "PGRST116") {
-              throw error;
-            }
-            
-            if (data) {
-              setHelperPoints(data.points);
-            }
-          } catch (error) {
-            console.error("Erreur lors du chargement des points:", error);
-          }
-        }
+        const points = await getHelperPoints(user.id);
+        setHelperPoints(points);
         
         // Get user location for proximity sorting
         if (navigator.geolocation) {
@@ -94,110 +94,58 @@ const Dashboard = () => {
           );
         }
       }
-    };
-    
-    // Load tasks initially
-    loadTasks();
-    
-    // Load helper points
-    loadHelperPoints();
-    
-    // Set up event listener for storage changes (when tasks are created or modified)
-    window.addEventListener('storage', loadTasks);
-    
-    // Cleanup function
-    return () => {
-      window.removeEventListener('storage', loadTasks);
-    };
-  }, [location.state, navigate, toast, userType]);
-
-  // Reload tasks from localStorage to ensure we have the latest data
-  useEffect(() => {
-    const storedTasks = localStorage.getItem("tasks");
-    if (storedTasks) {
-      setTasks(JSON.parse(storedTasks));
+    } catch (error) {
+      console.error("Error loading dashboard data:", error);
+      toast({
+        title: "Erreur",
+        description: "Nous n'avons pas pu charger vos données. Veuillez réessayer.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
     }
-    
-    // Also update points when reloading if userType is helper
-    if (userType === "helper") {
-      const loadHelperPointsFromSupabase = async () => {
-        const userId = localStorage.getItem("userId");
-        if (userId) {
-          try {
-            const { data, error } = await supabase
-              .from("helper_points")
-              .select("*")
-              .eq("helper_id", userId)
-              .maybeSingle();
-              
-            if (error && error.code !== "PGRST116") {
-              throw error;
-            }
-            
-            if (data) {
-              setHelperPoints(data.points);
-            }
-          } catch (error) {
-            console.error("Erreur lors du chargement des points:", error);
-          }
-        }
-      };
-      
-      loadHelperPointsFromSupabase();
-    }
-  }, [userType]);
+  };
 
   const handleTaskUpdate = async (taskId: string, status: "pending" | "assigned" | "completed" | "cancelled") => {
-    const updatedTasks = tasks.map(task => 
-      task.id === taskId ? { ...task, status, helperAssigned: status === "assigned" ? localStorage.getItem("userId") || "" : task.helperAssigned } : task
-    );
+    if (!user) return;
     
-    setTasks(updatedTasks);
-    // Save to localStorage
-    localStorage.setItem("tasks", JSON.stringify(updatedTasks));
-    
-    // Update helper points if task completed
-    if (status === "completed" && userType === "helper") {
-      const userId = localStorage.getItem("userId");
-      if (userId) {
-        try {
-          // Récupérer les points actuels depuis Supabase
-          const { data, error: fetchError } = await supabase
-            .from("helper_points")
-            .select("*")
-            .eq("helper_id", userId)
-            .maybeSingle();
-            
-          if (fetchError && fetchError.code !== "PGRST116") {
-            throw fetchError;
-          }
-          
-          const currentPoints = data ? data.points : 0;
-          const newPoints = currentPoints + 50;
-          
-          // Mettre à jour ou insérer des points
-          if (data) {
-            await supabase
-              .from("helper_points")
-              .update({ points: newPoints })
-              .eq("helper_id", userId);
-          } else {
-            await supabase
-              .from("helper_points")
-              .insert({ helper_id: userId, points: newPoints });
-          }
-          
-          setHelperPoints(newPoints);
-        } catch (error) {
-          console.error("Erreur lors de la mise à jour des points:", error);
+    try {
+      // Update in Supabase
+      const updates: Partial<Task> = { status };
+      
+      // If assigning to a helper, update the helper assigned field
+      if (status === "assigned" && userType === "helper") {
+        updates.helperAssigned = user.id;
+      }
+      
+      const success = await updateTask(taskId, updates);
+      
+      if (success) {
+        // Update local state
+        const updatedTasks = tasks.map(task => 
+          task.id === taskId ? { ...task, ...updates } : task
+        );
+        setTasks(updatedTasks);
+        
+        // Refresh points if task completed by helper
+        if (status === "completed" && userType === "helper") {
+          const points = await getHelperPoints(user.id);
+          setHelperPoints(points);
         }
       }
+    } catch (error) {
+      console.error("Error updating task:", error);
+      toast({
+        title: "Erreur",
+        description: "Nous n'avons pas pu mettre à jour cette tâche. Veuillez réessayer.",
+        variant: "destructive"
+      });
     }
   };
   
   const countTasksByStatus = (status: string) => {
     if (userType === "elderly") {
-      return tasks.filter(t => t.status === status && t.requestedBy === localStorage.getItem("userId")).length;
+      return tasks.filter(t => t.status === status && t.requestedBy === user?.id).length;
     } else {
       return tasks.filter(t => t.status === status).length;
     }
@@ -205,7 +153,9 @@ const Dashboard = () => {
   
   return (
     <div className={`flex flex-col min-h-screen ${userType === "elderly" ? "elderly-mode" : ""}`}>
-      <Header userType={userType} />
+      <Header userType={userType}>
+        {user && <Notifications />}
+      </Header>
       
       <main className="flex-grow container mx-auto px-4 py-8">
         <h1 className="text-2xl md:text-3xl font-bold mb-8">
@@ -298,7 +248,11 @@ const Dashboard = () => {
           {userType === "elderly" ? "Mes demandes récentes" : "Tâches récentes"}
         </h2>
         
-        <TaskList tasks={tasks} userType={userType} onTaskUpdate={handleTaskUpdate} />
+        {loading ? (
+          <div className="text-center py-10">Chargement des données...</div>
+        ) : (
+          <TaskList tasks={tasks} userType={userType} onTaskUpdate={handleTaskUpdate} />
+        )}
       </main>
       
       <Footer />

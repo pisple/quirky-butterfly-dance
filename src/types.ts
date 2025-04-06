@@ -9,16 +9,11 @@ export interface Task {
   keywords: string[];
   location: string;
   requestedBy: string;
-  requestedByName: string;
+  requestedByName?: string;
   requestedDate: string;
   status: "pending" | "assigned" | "completed" | "cancelled";
-  helperAssigned: string;
+  helperAssigned?: string;
   notificationSent?: boolean;
-}
-
-export interface KeywordOption {
-  value: string;
-  label: string;
 }
 
 export interface City {
@@ -26,11 +21,23 @@ export interface City {
   distance?: number;
 }
 
-export interface SiteContent {
-  id?: string;
-  key: string;
-  content: string;
-  last_updated?: string;
+export interface KeywordOption {
+  value: string;
+  label: string;
+}
+
+// New interfaces for Supabase tables
+export interface DbTask {
+  id: string;
+  type: string;
+  keywords: string[];
+  location: string;
+  requested_by: string;
+  requested_date: string;
+  status: string;
+  helper_assigned?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Notification {
@@ -42,8 +49,21 @@ export interface Notification {
   created_at: string;
 }
 
+export interface SiteContent {
+  id: string;
+  key: string;
+  content: string;
+  last_updated: string;
+}
+
 export interface HelperPoints {
   helper_id: string;
   points: number;
   updated_at: string;
+}
+
+export interface BelgianCity {
+  name: string;
+  latitude: number;
+  longitude: number;
 }
