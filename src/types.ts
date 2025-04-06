@@ -1,9 +1,11 @@
 
 export type UserType = "elderly" | "helper";
 
+export type TaskType = "groceries" | "cooking" | "gardening" | "technology" | "accompaniment";
+
 export interface Task {
   id: string;
-  type: "groceries" | "cooking" | "gardening" | "technology" | "accompaniment";
+  type: TaskType;
   keywords: string[];
   location: string;
   requestedBy: string;

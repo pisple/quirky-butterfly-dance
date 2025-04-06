@@ -15,6 +15,26 @@ const About = () => {
       const aboutContent = await getSiteContent("about");
       if (aboutContent) {
         setContent(aboutContent.content);
+      } else {
+        // Fallback content
+        setContent(`
+          <div class="prose max-w-none">
+            <h1>À propos de Gener-Action</h1>
+            <p>Application créée par les apprenants de l'IFAPME de Charleroi</p>
+            <p>Rue Square des martyrs 1<br>6000 Charleroi</p>
+            <p>Notre application a pour but de mettre en relation des personnes âgées ayant besoin d'aide avec des bénévoles prêts à leur venir en aide.</p>
+            <h2>Notre mission</h2>
+            <p>Faciliter l'entraide intergénérationnelle et améliorer la qualité de vie de nos aînés.</p>
+            <h2>Nos services</h2>
+            <ul>
+              <li>Aide aux courses</li>
+              <li>Aide à la cuisine</li>
+              <li>Accompagnement</li>
+              <li>Jardinage</li>
+              <li>Assistance technologique</li>
+            </ul>
+          </div>
+        `);
       }
       setLoading(false);
     }
@@ -39,42 +59,7 @@ const About = () => {
               <Skeleton className="h-6 w-full" />
             </div>
           ) : (
-            <div dangerouslySetInnerHTML={{ __html: content }} className="about-page">
-              <style jsx>{`
-                .about-page .about-container {
-                  display: flex;
-                  flex-direction: column;
-                  gap: 2rem;
-                }
-                
-                .about-page h1 {
-                  color: #2563eb;
-                  margin-bottom: 2rem;
-                }
-                
-                .about-page h2 {
-                  color: #2563eb;
-                  margin-bottom: 1rem;
-                }
-                
-                .about-page .location, .about-page .mission, .about-page .team {
-                  padding: 1rem;
-                  border-radius: 0.5rem;
-                  background-color: #f8fafc;
-                }
-                
-                @media (min-width: 768px) {
-                  .about-page .about-container {
-                    flex-direction: row;
-                    flex-wrap: wrap;
-                  }
-                  
-                  .about-page .location, .about-page .mission, .about-page .team {
-                    flex: 1 1 300px;
-                  }
-                }
-              `}</style>
-            </div>
+            <div dangerouslySetInnerHTML={{ __html: content }} />
           )}
         </div>
       </main>
