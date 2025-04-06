@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -7,12 +8,14 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { getUserTasks, updateLocalTask, updateHelperPoints, getAllTasks } from "@/utils/localTaskStorage";
+import { getTasks, getTasksByUser, updateTask, updateHelperPoints as updateSupabaseHelperPoints } from "@/utils/supabaseRPC";
 
 const AcceptedTasks = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [userType, setUserType] = useState<UserType>("helper");
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   
   useEffect(() => {
@@ -30,40 +33,87 @@ const AcceptedTasks = () => {
       setUserType(user.type as UserType);
     }
     
-    // Load tasks from localStorage
+    // Load tasks
     loadTasks();
   }, [user, navigate, toast]);
   
-  const loadTasks = () => {
+  const loadTasks = async () => {
     if (!user) return;
+    setIsLoading(true);
     
-    if (userType === "elderly") {
-      // Pour les seniors, récupérer toutes leurs tâches, y compris celles en attente d'approbation
-      const allTasks = getAllTasks();
-      const userTasks = allTasks.filter(task => 
-        task.requestedBy === user.id
-      );
-      setTasks(userTasks);
-    } else {
-      // Pour les helpers, récupérer leurs tâches en attente d'approbation et assignées
-      const allTasks = getAllTasks();
+    try {
+      // First try to get tasks from Supabase
+      let loadedTasks: Task[] = [];
       
-      // Filtrer pour obtenir les tâches assignées à cet helper et celles en attente d'approbation
-      const helperTasks = allTasks.filter(task => 
-        (task.helperAssigned === user.id && 
-         (task.status === "assigned" || task.status === "waiting_approval"))
-      );
+      if (userType === "helper") {
+        // For helpers, load all pending tasks (created by seniors) and their assigned tasks
+        const allTasks = await getTasks().catch(() => []);
+        
+        if (allTasks.length > 0) {
+          // Filter tasks for helpers: show pending tasks and tasks assigned to them
+          loadedTasks = allTasks.filter(task => 
+            // Show all pending tasks (available for help)
+            (task.status === "pending") ||
+            // Or show tasks assigned to this helper or waiting approval
+            (task.helperAssigned === user.id && 
+             (task.status === "assigned" || task.status === "waiting_approval"))
+          );
+        }
+      } else {
+        // For elderly, show all their tasks
+        const userTasks = await getTasksByUser(user.id, "requestedBy").catch(() => []);
+        loadedTasks = userTasks;
+      }
       
-      setTasks(helperTasks);
+      // If no tasks loaded from Supabase, fall back to local storage
+      if (loadedTasks.length === 0) {
+        console.log("Falling back to local storage for tasks");
+        
+        if (userType === "elderly") {
+          // For seniors, get all their tasks
+          const allTasks = getAllTasks();
+          loadedTasks = allTasks.filter(task => task.requestedBy === user.id);
+        } else {
+          // For helpers, get all tasks (including those created by seniors)
+          const allTasks = getAllTasks();
+          
+          // Show all pending tasks (available for help) and tasks assigned to this helper
+          loadedTasks = allTasks.filter(task => 
+            // Show all pending tasks
+            (task.status === "pending") ||
+            // Or show tasks assigned to this helper
+            (task.helperAssigned === user.id && 
+             (task.status === "assigned" || task.status === "waiting_approval"))
+          );
+        }
+      }
+      
+      setTasks(loadedTasks);
+    } catch (error) {
+      console.error("Error loading tasks:", error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger les tâches. Veuillez réessayer.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleTaskUpdate = (taskId: string, status: "pending" | "waiting_approval" | "assigned" | "completed" | "cancelled") => {
+  const handleTaskUpdate = async (taskId: string, status: "pending" | "waiting_approval" | "assigned" | "completed" | "cancelled") => {
     if (!user) return;
     
-    const success = updateLocalTask(taskId, { status });
-    
-    if (success) {
+    try {
+      // Try to update in Supabase first
+      const success = await updateTask(taskId, { status });
+      
+      if (!success) {
+        // Fall back to local storage if Supabase update fails
+        console.log("Falling back to local storage for task update");
+        updateLocalTask(taskId, { status });
+      }
+      
       // Update local state
       const updatedTasks = tasks.map(task => 
         task.id === taskId ? { ...task, status } : task
@@ -74,7 +124,16 @@ const AcceptedTasks = () => {
       if (status === "completed") {
         // Add 50 points for the helper when a task is completed
         if (userType === "helper" && user.id) {
-          const newPoints = updateHelperPoints(user.id, 50);
+          let newPoints = 0;
+          
+          try {
+            // Try Supabase first
+            newPoints = await updateSupabaseHelperPoints(user.id, 50);
+          } catch (error) {
+            // Fall back to local storage
+            console.log("Falling back to local storage for helper points");
+            newPoints = updateHelperPoints(user.id, 50);
+          }
           
           toast({
             title: "Tâche terminée",
@@ -102,6 +161,13 @@ const AcceptedTasks = () => {
           description: "Le senior a confirmé votre aide."
         });
       }
+    } catch (error) {
+      console.error("Error updating task:", error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de mettre à jour la tâche. Veuillez réessayer.",
+        variant: "destructive"
+      });
     }
   };
   
@@ -111,10 +177,16 @@ const AcceptedTasks = () => {
       
       <main className="flex-grow container mx-auto px-4 py-8">
         <h1 className="text-2xl md:text-3xl font-bold mb-8">
-          {userType === "elderly" ? "Mes demandes en cours" : "Mes tâches acceptées"}
+          {userType === "elderly" ? "Mes demandes en cours" : "Tâches disponibles"}
         </h1>
         
-        <TaskList tasks={tasks} userType={userType} onTaskUpdate={handleTaskUpdate} />
+        {isLoading ? (
+          <div className="flex justify-center py-12">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-app-blue"></div>
+          </div>
+        ) : (
+          <TaskList tasks={tasks} userType={userType} onTaskUpdate={handleTaskUpdate} />
+        )}
       </main>
       
       <Footer />
