@@ -1,148 +1,95 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Heart, Rocket, Clock, Award } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import UserTypeSelection from "@/components/UserTypeSelection";
+import { UserType } from "@/types";
 
 const Index = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const [aboutContent, setAboutContent] = useState<string>("");
+  const [showSelection, setShowSelection] = useState(false);
   
-  useEffect(() => {
-    // Rediriger vers le tableau de bord si l'utilisateur est connecté
-    if (user) {
-      navigate("/dashboard");
-    }
-
-    // Charger le contenu "À propos"
-    const fetchAboutContent = async () => {
-      const { data } = await supabase
-        .from("site_content")
-        .select("content")
-        .eq("id", "about")
-        .single();
-
-      if (data) {
-        setAboutContent(data.content);
-      }
-    };
-
-    fetchAboutContent();
-  }, [user, navigate]);
+  const handleUserTypeSelection = (type: UserType) => {
+    console.log(`Selected user type: ${type}`);
+    navigate("/register");
+  };
   
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col min-h-screen bg-gradient-to-b from-white to-app-blue/5">
       <Header />
       
       <main className="flex-grow">
-        {/* Hero Section */}
-        <section className="bg-gradient-to-r from-blue-50 to-indigo-100 py-16 md:py-24">
-          <div className="container mx-auto px-4">
-            <div className="flex flex-col md:flex-row items-center">
-              <div className="md:w-1/2 mb-8 md:mb-0">
-                <h1 className="text-3xl md:text-5xl font-bold text-app-blue mb-4">
-                  Entraide intergénérationnelle
+        {showSelection ? (
+          <section className="py-12 md:py-20">
+            <UserTypeSelection onSelection={handleUserTypeSelection} />
+          </section>
+        ) : (
+          <>
+            {/* Hero Section */}
+            <section className="py-12 md:py-20">
+              <div className="container mx-auto px-4 text-center">
+                <h1 className="text-3xl md:text-5xl font-bold mb-6 text-app-blue">
+                  Renforcer les liens intergénérationnels
                 </h1>
-                <p className="text-lg md:text-xl text-gray-700 mb-6">
-                  Gener-Action connecte les seniors ayant besoin d'aide pour des tâches quotidiennes avec des jeunes prêts à donner un coup de main.
+                <p className="text-xl md:text-2xl mb-8 max-w-3xl mx-auto text-gray-700">
+                  Gener-Action connecte les personnes séniors avec des jeunes adultes prêts à les aider dans leurs tâches quotidiennes.
                 </p>
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <Button 
-                    className="bg-app-blue hover:bg-app-blue/90 text-lg px-6 py-6"
-                    onClick={() => navigate("/register", { state: { userType: "elderly" } })}
-                  >
-                    Je suis un senior
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    className="text-lg px-6 py-6"
-                    onClick={() => navigate("/register", { state: { userType: "helper" } })}
-                  >
-                    Je veux aider
-                  </Button>
+                <Button 
+                  onClick={() => navigate("/register")}
+                  className="text-lg px-8 py-6 bg-app-blue hover:bg-app-blue/90"
+                >
+                  Commencer
+                </Button>
+              </div>
+            </section>
+            
+            {/* Features Section */}
+            <section className="py-16 bg-white">
+              <div className="container mx-auto px-4">
+                <h2 className="text-2xl md:text-4xl font-bold mb-12 text-center">
+                  Comment ça fonctionne
+                </h2>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+                  {/* Feature 1 */}
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-app-blue/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <span className="text-2xl font-bold text-app-blue">1</span>
+                    </div>
+                    <h3 className="text-xl font-semibold mb-3">Demandez de l'aide</h3>
+                    <p className="text-gray-600">
+                      Les personnes séniors peuvent facilement demander de l'aide pour leurs courses ou la cuisine.
+                    </p>
+                  </div>
+                  
+                  {/* Feature 2 */}
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-app-blue/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <span className="text-2xl font-bold text-app-blue">2</span>
+                    </div>
+                    <h3 className="text-xl font-semibold mb-3">Trouvez des aidants</h3>
+                    <p className="text-gray-600">
+                      Des jeunes adultes bienveillants peuvent accepter d'aider selon leur disponibilité.
+                    </p>
+                  </div>
+                  
+                  {/* Feature 3 */}
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-app-blue/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <span className="text-2xl font-bold text-app-blue">3</span>
+                    </div>
+                    <h3 className="text-xl font-semibold mb-3">Créer des liens</h3>
+                    <p className="text-gray-600">
+                      Facilitez les tâches quotidiennes tout en créant des connexions humaines précieuses.
+                    </p>
+                  </div>
                 </div>
               </div>
-              <div className="md:w-1/2 flex justify-center">
-                <img 
-                  src="/logo-generaction.png" 
-                  alt="Gener-Action" 
-                  className="max-w-full h-auto max-h-80"
-                />
-              </div>
-            </div>
-          </div>
-        </section>
-        
-        {/* Features Section */}
-        <section className="py-16">
-          <div className="container mx-auto px-4">
-            <h2 className="text-2xl md:text-4xl font-bold text-center mb-12">
-              Comment ça fonctionne
-            </h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <Card>
-                <CardContent className="pt-6 text-center">
-                  <div className="flex justify-center mb-4">
-                    <div className="bg-blue-100 p-3 rounded-full">
-                      <Heart className="h-8 w-8 text-app-blue" />
-                    </div>
-                  </div>
-                  <h3 className="text-xl font-semibold mb-2">Demandez de l'aide</h3>
-                  <p className="text-gray-600">
-                    Les seniors peuvent facilement demander de l'aide pour leurs besoins quotidiens : courses, jardinage, technologie, et plus encore.
-                  </p>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardContent className="pt-6 text-center">
-                  <div className="flex justify-center mb-4">
-                    <div className="bg-green-100 p-3 rounded-full">
-                      <Rocket className="h-8 w-8 text-green-600" />
-                    </div>
-                  </div>
-                  <h3 className="text-xl font-semibold mb-2">Connectez-vous</h3>
-                  <p className="text-gray-600">
-                    Les jeunes bénévoles peuvent voir les demandes près de chez eux et proposer leur aide quand ils le souhaitent.
-                  </p>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardContent className="pt-6 text-center">
-                  <div className="flex justify-center mb-4">
-                    <div className="bg-yellow-100 p-3 rounded-full">
-                      <Award className="h-8 w-8 text-yellow-600" />
-                    </div>
-                  </div>
-                  <h3 className="text-xl font-semibold mb-2">Gagnez des points</h3>
-                  <p className="text-gray-600">
-                    Les jeunes aidants gagnent des points pour chaque tâche accomplie, valorisant leur engagement communautaire.
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </section>
-        
-        {/* About Section */}
-        <section className="bg-gray-50 py-16">
-          <div className="container mx-auto px-4">
-            <div className="max-w-3xl mx-auto">
-              <div 
-                className="prose max-w-none" 
-                dangerouslySetInnerHTML={{ __html: aboutContent }} 
-              />
-            </div>
-          </div>
-        </section>
+            </section>
+          </>
+        )}
       </main>
       
       <Footer />

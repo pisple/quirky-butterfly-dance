@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,8 +7,6 @@ import { Task } from "@/types";
 import { Clock, ShoppingCart, ChefHat, Flower, Laptop, Users, MapPin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import MapDisplay from "./MapDisplay";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
 
 interface TaskCardProps {
   task: Task;
@@ -18,51 +16,63 @@ interface TaskCardProps {
 
 const TaskCard = ({ task, userType, onTaskUpdate }: TaskCardProps) => {
   const { toast } = useToast();
-  const { user } = useAuth();
   const [showMap, setShowMap] = useState(false);
-  const [requesterName, setRequesterName] = useState<string>("");
-  
-  // Charger le nom du demandeur pour les aidants
-  useEffect(() => {
-    if (userType === "helper" && task.requested_by) {
-      const fetchRequester = async () => {
-        try {
-          const { data, error } = await supabase
-            .from('profiles')
-            .select('name')
-            .eq('id', task.requested_by)
-            .single();
-            
-          if (error) throw error;
-          
-          if (data) {
-            setRequesterName(data.name);
-          }
-        } catch (error) {
-          console.error("Erreur lors du chargement du nom du demandeur:", error);
-          setRequesterName("Senior");
-        }
-      };
-      
-      fetchRequester();
-    }
-  }, [task.requested_by, userType]);
   
   const handleAccept = () => {
     if (onTaskUpdate) {
       onTaskUpdate(task.id, "assigned");
+      
+      // Get the elderly's name for the notification
+      const elderlyName = task.requestedByName || "Une personne senior";
+      
+      // Show notification toast to the helper
+      toast({
+        title: "Tâche acceptée",
+        description: `Vous avez accepté d'aider ${elderlyName} avec ${getTaskName()} à ${task.location}.`,
+      });
+      
+      // Store that a notification has been sent
+      // This could be expanded in a real app to send to the elderly as well
+      const updatedTasks = JSON.parse(localStorage.getItem("tasks") || "[]");
+      const taskIndex = updatedTasks.findIndex((t: Task) => t.id === task.id);
+      if (taskIndex !== -1) {
+        updatedTasks[taskIndex].notificationSent = true;
+        localStorage.setItem("tasks", JSON.stringify(updatedTasks));
+      }
     }
   };
   
   const handleCancel = () => {
     if (onTaskUpdate) {
       onTaskUpdate(task.id, "cancelled");
+      
+      toast({
+        title: "Tâche annulée",
+        description: "Votre demande a été annulée.",
+      });
     }
   };
   
   const handleComplete = () => {
     if (onTaskUpdate) {
       onTaskUpdate(task.id, "completed");
+      
+      if (userType === "helper") {
+        const currentPoints = parseInt(localStorage.getItem("helperPoints") || "0");
+        // Award 50 points for completing a task
+        const newPoints = currentPoints + 50;
+        localStorage.setItem("helperPoints", newPoints.toString());
+        
+        toast({
+          title: "Tâche terminée",
+          description: `Merci pour votre aide ! Vous avez gagné 50 points. Vous avez maintenant ${newPoints} points.`,
+        });
+      } else {
+        toast({
+          title: "Tâche terminée",
+          description: "Merci d'avoir confirmé que la tâche est terminée !",
+        });
+      }
     }
   };
   
@@ -123,12 +133,6 @@ const TaskCard = ({ task, userType, onTaskUpdate }: TaskCardProps) => {
     return null;
   }
 
-  // Vérifier si l'utilisateur est l'aidant assigné à cette tâche
-  const isAssignedHelper = user && task.helper_assigned === user.id;
-  
-  // Vérifier si l'utilisateur est le demandeur de cette tâche
-  const isRequester = user && task.requested_by === user.id;
-
   return (
     <Card className="w-full">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -162,12 +166,12 @@ const TaskCard = ({ task, userType, onTaskUpdate }: TaskCardProps) => {
           </div>
           <div className="flex items-center gap-2 mt-1">
             <Clock size={16} />
-            <span>Date: {new Date(task.requested_date).toLocaleDateString()}</span>
+            <span>Date: {new Date(task.requestedDate).toLocaleDateString()}</span>
           </div>
         </div>
-        {userType === "helper" && requesterName && (
+        {userType === "helper" && task.requestedByName && (
           <div className="mt-3">
-            <span className="font-semibold">Demandé par:</span> {requesterName}
+            <span className="font-semibold">Demandé par:</span> {task.requestedByName}
           </div>
         )}
       </CardContent>
@@ -177,12 +181,11 @@ const TaskCard = ({ task, userType, onTaskUpdate }: TaskCardProps) => {
           <Button className="bg-app-blue hover:bg-app-blue/90" onClick={handleAccept}>
             Accepter cette tâche
           </Button>
-        ) : userType === "elderly" && task.status === "pending" && isRequester ? (
+        ) : userType === "elderly" && task.status === "pending" ? (
           <Button variant="destructive" onClick={handleCancel}>
             Annuler la demande
           </Button>
-        ) : (userType === "helper" && task.status === "assigned" && isAssignedHelper) || 
-             (userType === "elderly" && task.status === "assigned" && isRequester) ? (
+        ) : userType === "helper" && task.status === "assigned" ? (
           <Button className="bg-green-600 hover:bg-green-700" onClick={handleComplete}>
             Marquer comme terminée
           </Button>
