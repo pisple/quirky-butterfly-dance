@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Bell, Check } from "lucide-react";
 import {
@@ -10,8 +11,15 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Notification } from "@/types";
-import { getUserNotifications, markNotificationAsRead } from "@/utils/supabaseRPC";
+
+interface Notification {
+  id: string;
+  message: string;
+  type: string;
+  related_task_id: string;
+  is_read: boolean;
+  created_at: string;
+}
 
 export default function Notifications() {
   const { user } = useAuth();
@@ -22,17 +30,29 @@ export default function Notifications() {
 
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
-  // Load user notifications
+  // Charger les notifications de l'utilisateur
   useEffect(() => {
     const fetchNotifications = async () => {
       if (!user?.id) return;
 
       setLoading(true);
       try {
-        const data = await getUserNotifications(user.id);
-        setNotifications(data);
+        const { data, error } = await supabase
+          .from("notifications")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(10);
+
+        if (error) {
+          throw error;
+        }
+
+        if (data) {
+          setNotifications(data);
+        }
       } catch (error) {
-        console.error("Error loading notifications:", error);
+        console.error("Erreur lors du chargement des notifications:", error);
       } finally {
         setLoading(false);
       }
@@ -40,7 +60,7 @@ export default function Notifications() {
 
     fetchNotifications();
     
-    // Subscribe to notification changes
+    // S'abonner aux modifications de notifications
     const notificationsSubscription = supabase
       .channel("notifications-changes")
       .on(
@@ -52,12 +72,12 @@ export default function Notifications() {
           filter: `user_id=eq.${user?.id}`,
         },
         (payload) => {
-          // Add new notification to the list
+          // Ajouter la nouvelle notification à la liste
           setNotifications(prev => [payload.new as Notification, ...prev]);
           
-          // Show toast notification
+          // Afficher une notification toast
           toast({
-            title: "New notification",
+            title: "Nouvelle notification",
             description: (payload.new as Notification).message,
           });
         }
@@ -65,25 +85,30 @@ export default function Notifications() {
       .subscribe();
       
     return () => {
-      // Unsubscribe when component unmounts
+      // Se désabonner lorsque le composant est démonté
       supabase.removeChannel(notificationsSubscription);
     };
   }, [user?.id, toast]);
 
   const markAsRead = async (notificationId: string) => {
     try {
-      const success = await markNotificationAsRead(notificationId);
+      const { error } = await supabase
+        .from("notifications")
+        .update({ is_read: true })
+        .eq("id", notificationId);
 
-      if (success) {
-        // Update local state
-        setNotifications(
-          notifications.map(n =>
-            n.id === notificationId ? { ...n, is_read: true } : n
-          )
-        );
+      if (error) {
+        throw error;
       }
+
+      // Mettre à jour l'état local
+      setNotifications(
+        notifications.map(n =>
+          n.id === notificationId ? { ...n, is_read: true } : n
+        )
+      );
     } catch (error) {
-      console.error("Error marking notification as read:", error);
+      console.error("Erreur lors du marquage de la notification:", error);
     }
   };
 
@@ -91,24 +116,30 @@ export default function Notifications() {
     if (notifications.length === 0) return;
     
     try {
-      // For each unread notification, mark it as read
-      const unreadNotifications = notifications.filter(n => !n.is_read);
-      
-      for (const notification of unreadNotifications) {
-        await markNotificationAsRead(notification.id);
+      const { error } = await supabase
+        .from("notifications")
+        .update({ is_read: true })
+        .eq("user_id", user?.id)
+        .in(
+          "id",
+          notifications.filter(n => !n.is_read).map(n => n.id)
+        );
+
+      if (error) {
+        throw error;
       }
 
-      // Update local state
+      // Mettre à jour l'état local
       setNotifications(
         notifications.map(n => ({ ...n, is_read: true }))
       );
       
       toast({
         title: "Notifications",
-        description: "All notifications have been marked as read.",
+        description: "Toutes les notifications ont été marquées comme lues.",
       });
     } catch (error) {
-      console.error("Error marking notifications as read:", error);
+      console.error("Erreur lors du marquage des notifications:", error);
     }
   };
 
@@ -151,16 +182,16 @@ export default function Notifications() {
               onClick={markAllAsRead}
               disabled={loading}
             >
-              Mark all as read
+              Tout marquer comme lu
             </Button>
           )}
         </div>
         <div className="max-h-80 overflow-y-auto">
           {loading ? (
-            <div className="p-4 text-center text-gray-500">Loading...</div>
+            <div className="p-4 text-center text-gray-500">Chargement...</div>
           ) : notifications.length === 0 ? (
             <div className="p-4 text-center text-gray-500">
-              No notifications
+              Aucune notification
             </div>
           ) : (
             notifications.map((notification) => (
@@ -188,7 +219,7 @@ export default function Notifications() {
                       onClick={() => markAsRead(notification.id)}
                     >
                       <Check size={14} />
-                      <span className="sr-only">Mark as read</span>
+                      <span className="sr-only">Marquer comme lu</span>
                     </Button>
                   )}
                 </div>

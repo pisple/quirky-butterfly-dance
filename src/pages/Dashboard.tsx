@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import Header from "@/components/Header";
@@ -11,7 +12,6 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { adaptTasksFromDB, adaptTaskFromDB } from "@/utils/taskAdapter";
 
 const Dashboard = () => {
   const location = useLocation();
@@ -24,9 +24,11 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   
   useEffect(() => {
+    // Utiliser le type d'utilisateur connecté
     if (user) {
       setUserType(user.type);
     } else {
+      // Si pas d'utilisateur connecté, rediriger vers la connexion
       toast({
         title: "Veuillez vous connecter",
         description: "Vous devez être connecté pour accéder à cette page.",
@@ -35,49 +37,91 @@ const Dashboard = () => {
       return;
     }
     
-    const fetchTasks = async () => {
+    const loadTasks = async () => {
       setLoading(true);
       try {
-        let { data, error } = await supabase
-          .from('tasks')
-          .select('*');
-
+        let query = supabase.from('tasks').select('*');
+        
+        // Pour les seniors: voir uniquement leurs propres tâches
+        if (user.type === 'elderly') {
+          query = query.eq('requested_by', user.id);
+        }
+        
+        // Charger les tâches
+        const { data, error } = await query;
+        
         if (error) throw error;
-
+        
         if (data) {
-          const adaptedTasks = adaptTasksFromDB(data);
-          setTasks(adaptedTasks);
+          setTasks(data);
+        }
+        
+        // Pour les aidants, charger aussi les points
+        if (user.type === 'helper') {
+          const { data: pointsData, error: pointsError } = await supabase
+            .from('helper_points')
+            .select('points')
+            .eq('helper_id', user.id)
+            .single();
+            
+          if (pointsError && pointsError.code !== 'PGRST116') throw pointsError;
+          
+          if (pointsData) {
+            setHelperPoints(pointsData.points);
+          }
+          
+          // Obtenir la position de l'utilisateur pour le tri par proximité
+          if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+              (position) => {
+                const coordinates = {
+                  latitude: position.coords.latitude,
+                  longitude: position.coords.longitude,
+                };
+                localStorage.setItem("userLocation", JSON.stringify(coordinates));
+              },
+              (error) => {
+                console.error("Error getting user location:", error);
+                // Utiliser une position par défaut pour la Belgique si la géolocalisation échoue
+                const defaultLocation = {
+                  latitude: 50.8503, // Latitude de Bruxelles
+                  longitude: 4.3517, // Longitude de Bruxelles
+                };
+                localStorage.setItem("userLocation", JSON.stringify(defaultLocation));
+              }
+            );
+          }
         }
       } catch (error) {
-        console.error("Erreur lors du chargement des tâches:", error);
+        console.error("Erreur lors du chargement des données:", error);
         toast({
           title: "Erreur",
-          description: "Impossible de charger les tâches.",
-          variant: "destructive",
+          description: "Impossible de charger les données.",
+          variant: "destructive"
         });
       } finally {
         setLoading(false);
       }
     };
-
-    fetchTasks();
     
+    loadTasks();
+    
+    // S'abonner aux changements de tâches
     const tasksSubscription = supabase
       .channel('tasks-changes')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'tasks' },
         (payload) => {
+          // Mettre à jour la liste des tâches en fonction du type d'événement
           if (payload.eventType === 'INSERT') {
             if (user.type === 'helper' || (user.type === 'elderly' && payload.new.requested_by === user.id)) {
-              const newTask = adaptTaskFromDB(payload.new);
-              setTasks(current => [newTask, ...current]);
+              setTasks(current => [payload.new as Task, ...current]);
             }
           } else if (payload.eventType === 'UPDATE') {
-            const updatedTask = adaptTaskFromDB(payload.new);
             setTasks(current => 
               current.map(task => 
-                task.id === updatedTask.id ? updatedTask : task
+                task.id === payload.new.id ? (payload.new as Task) : task
               )
             );
           } else if (payload.eventType === 'DELETE') {
@@ -92,62 +136,62 @@ const Dashboard = () => {
     return () => {
       supabase.removeChannel(tasksSubscription);
     };
-  }, [user?.id, userType, toast]);
+  }, [user, navigate, toast]);
 
-  const handleTaskUpdate = async (taskId: string, newStatus: "pending" | "assigned" | "completed" | "cancelled") => {
+  const handleTaskUpdate = async (taskId: string, status: "pending" | "assigned" | "completed" | "cancelled") => {
     try {
-      const updates: any = { status: newStatus };
+      const updatedTask = tasks.find(task => task.id === taskId);
       
-      if (newStatus === "assigned" && user && userType === "helper") {
-        updates.helper_assigned = user.id;
+      if (!updatedTask) return;
+      
+      // Pour les tâches assignées, ajouter l'ID de l'aidant
+      let helperAssigned = updatedTask.helper_assigned;
+      if (status === "assigned" && user?.type === "helper") {
+        helperAssigned = user.id;
       }
       
+      // Mettre à jour le statut de la tâche
       const { error } = await supabase
         .from('tasks')
-        .update(updates)
+        .update({ 
+          status: status,
+          helper_assigned: helperAssigned,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', taskId);
         
       if (error) throw error;
       
+      // Mettre à jour l'état local
       setTasks(tasks.map(task => 
-        task.id === taskId 
-          ? { ...task, status: newStatus, helperAssigned: updates.helper_assigned || task.helperAssigned } 
-          : task
+        task.id === taskId ? { ...task, status, helperAssigned } : task
       ));
       
-      let message = '';
-      switch (newStatus) {
-        case "assigned":
-          message = "Tâche acceptée avec succès!";
-          break;
-        case "completed":
-          message = "Tâche marquée comme terminée!";
-          break;
-        case "cancelled":
-          message = "Tâche annulée!";
-          break;
-        default:
-          message = "Tâche mise à jour!";
-      }
+      // Afficher une notification appropriée
+      const statusMessages = {
+        assigned: "Tâche acceptée avec succès",
+        completed: "Tâche marquée comme complétée",
+        cancelled: "Demande annulée"
+      };
       
       toast({
-        title: "Succès",
-        description: message,
+        title: statusMessages[status] || "Statut mis à jour",
+        description: "La mise à jour a été enregistrée."
       });
+      
     } catch (error) {
       console.error("Erreur lors de la mise à jour de la tâche:", error);
       toast({
         title: "Erreur",
         description: "Impossible de mettre à jour la tâche.",
-        variant: "destructive",
+        variant: "destructive"
       });
     }
   };
   
   const countTasksByStatus = (status: string) => {
-    return tasks.filter(t => t.status === status && (userType === "helper" || t.requestedBy === user?.id)).length;
+    return tasks.filter(t => t.status === status && (userType === "helper" || t.requested_by === user?.id)).length;
   };
-  
   
   return (
     <div className={`flex flex-col min-h-screen ${userType === "elderly" ? "elderly-mode" : ""}`}>
@@ -165,6 +209,7 @@ const Dashboard = () => {
         ) : (
           <>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
+              {/* Stats/Quick actions cards */}
               <Card>
                 <CardHeader>
                   <CardTitle className={userType === "elderly" ? "text-xl" : ""}>

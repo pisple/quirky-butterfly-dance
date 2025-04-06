@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,8 +28,8 @@ import { Badge } from "@/components/ui/badge";
 import { ShoppingCart, ChefHat, Flower, Laptop, Users, MapPin, Calendar, Weight, Store, PillIcon, Cookie, Truck } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { getBelgianCities, getNearestCities } from "@/utils/supabaseRPC";
 
+// Schema de validation pour le formulaire de demande d'aide
 const taskRequestSchema = z.object({
   type: z.enum(["groceries", "cooking", "gardening", "technology", "accompaniment"], { 
     required_error: "Veuillez sélectionner un type d'aide" 
@@ -40,6 +41,7 @@ const taskRequestSchema = z.object({
 
 type TaskRequestFormValues = z.infer<typeof taskRequestSchema>;
 
+// Définitions des mots-clés par type de tâche
 const GROCERIES_KEYWORDS: KeywordOption[] = [
   { value: "supermarché", label: "Supermarché" },
   { value: "pharmacie", label: "Pharmacie" },
@@ -90,6 +92,7 @@ const ACCOMPANIMENT_KEYWORDS: KeywordOption[] = [
   { value: "lecture", label: "Lecture" },
 ];
 
+// Fonction pour associer un icône à chaque mot-clé
 const getKeywordIcon = (keyword: string) => {
   switch (keyword) {
     case "supermarché":
@@ -113,6 +116,7 @@ const getKeywordIcon = (keyword: string) => {
   }
 };
 
+// Fonction pour calculer la distance entre deux points géographiques
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
   const R = 6371; // Rayon de la Terre en km
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -170,17 +174,21 @@ const TaskRequestForm = () => {
     const loadCities = async () => {
       setIsLoadingCities(true);
       try {
-        const cities = await getBelgianCities();
+        const { data, error } = await supabase
+          .from('belgian_cities')
+          .select('name, latitude, longitude');
+          
+        if (error) throw error;
         
-        if (cities && cities.length > 0) {
-          const citiesWithDistance = cities.map(city => ({
+        if (data) {
+          const cities = data.map(city => ({
             name: city.name,
             latitude: city.latitude,
             longitude: city.longitude,
             distance: undefined
           }));
           
-          setNearbyCities(citiesWithDistance.slice(0, 20));
+          setNearbyCities(cities.slice(0, 20));
         }
       } catch (error) {
         console.error("Erreur lors du chargement des villes:", error);
@@ -191,7 +199,7 @@ const TaskRequestForm = () => {
 
     loadUserProfile();
     loadCities();
-  }, [user, navigate, toast, form]);
+  }, [user, navigate, toast]);
 
   const getCurrentLocation = () => {
     setIsLoadingCities(true);
@@ -201,18 +209,24 @@ const TaskRequestForm = () => {
           const { latitude, longitude } = position.coords;
           
           try {
-            const cities = await getBelgianCities();
+            // Charger toutes les villes de la base de données
+            const { data, error } = await supabase
+              .from('belgian_cities')
+              .select('name, latitude, longitude');
+              
+            if (error) throw error;
             
-            if (cities && cities.length > 0) {
-              const citiesWithDistance = cities.map(city => ({
+            if (data) {
+              // Calculer la distance pour chaque ville
+              const citiesWithDistance = data.map(city => ({
                 name: city.name,
                 latitude: city.latitude,
                 longitude: city.longitude,
                 distance: calculateDistance(latitude, longitude, city.latitude, city.longitude)
               }));
               
-              const sortedCities = citiesWithDistance.sort((a, b) => 
-                (a.distance || Infinity) - (b.distance || Infinity));
+              // Trier par proximité
+              const sortedCities = citiesWithDistance.sort((a, b) => a.distance - b.distance);
               
               setNearbyCities(sortedCities.slice(0, 20));
               
@@ -222,11 +236,12 @@ const TaskRequestForm = () => {
               }
             }
             
-            if (user && cities && cities.length > 0) {
+            // Mettre à jour le profil utilisateur avec les coordonnées
+            if (user) {
               await supabase
                 .from('profiles')
                 .update({
-                  location: cities[0].name,
+                  location: data && data.length > 0 ? data[0].name : undefined,
                 })
                 .eq('id', user.id);
             }
@@ -301,6 +316,7 @@ const TaskRequestForm = () => {
     setSubmitting(true);
     
     try {
+      // Créer la tâche dans la base de données
       const { error } = await supabase
         .from('tasks')
         .insert([{
@@ -319,6 +335,7 @@ const TaskRequestForm = () => {
         description: "Votre demande d'aide a été envoyée avec succès.",
       });
       
+      // Réinitialiser le formulaire
       form.reset({
         type: "groceries", 
         keywords: [], 
@@ -327,6 +344,7 @@ const TaskRequestForm = () => {
       });
       setSelectedKeywords([]);
       
+      // Rediriger vers le tableau de bord
       navigate("/dashboard");
     } catch (error) {
       console.error("Erreur lors de la création de la demande:", error);

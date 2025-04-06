@@ -1,82 +1,88 @@
 
 import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getSiteContent } from "@/utils/supabaseRPC";
-
-interface ContentData {
-  title: string;
-  content: string;
-}
+import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const Terms = () => {
-  const { contentType = "terms" } = useParams();
-  const [content, setContent] = useState<ContentData>({ title: "", content: "" });
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const { contentType } = useParams();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [content, setContent] = useState({ title: "", content: "" });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchContent = async () => {
+      setLoading(true);
+      
+      const contentId = contentType === "privacy" 
+        ? "privacy" 
+        : contentType === "about" 
+          ? "about" 
+          : "terms";
+      
       try {
-        setIsLoading(true);
-        const data = await getSiteContent(contentType);
+        const { data, error } = await supabase
+          .from("site_content")
+          .select("title, content")
+          .eq("id", contentId)
+          .single();
+          
+        if (error) {
+          throw error;
+        }
         
         if (data) {
-          setContent({ 
-            title: data.title, 
-            content: data.content 
-          });
+          setContent(data);
         }
       } catch (error) {
-        console.error(`Erreur lors du chargement du contenu ${contentType}:`, error);
+        console.error("Erreur lors du chargement du contenu:", error);
+        toast({
+          title: "Erreur",
+          description: "Impossible de charger le contenu demandé.",
+          variant: "destructive",
+        });
       } finally {
-        setIsLoading(false);
+        setLoading(false);
       }
     };
-
+    
     fetchContent();
-  }, [contentType]);
-
+  }, [contentType, toast]);
+  
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
       
       <main className="flex-grow container mx-auto px-4 py-8">
-        <Card>
-          <Tabs defaultValue={contentType} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="terms" asChild>
-                <Link to="/terms/terms">Conditions d'utilisation</Link>
-              </TabsTrigger>
-              <TabsTrigger value="privacy" asChild>
-                <Link to="/terms/privacy">Politique de confidentialité</Link>
-              </TabsTrigger>
-            </TabsList>
-            
+        {loading ? (
+          <div className="flex justify-center items-center h-64">
+            <p className="text-lg">Chargement...</p>
+          </div>
+        ) : (
+          <Card className="w-full max-w-4xl mx-auto">
             <CardContent className="pt-6">
-              {isLoading ? (
-                <p className="text-center py-8">Chargement...</p>
-              ) : (
-                <>
-                  <h1 className="text-2xl font-bold mb-6">{content.title}</h1>
-                  <div className="prose max-w-none" dangerouslySetInnerHTML={{ __html: content.content }} />
-                </>
-              )}
+              <div 
+                className="prose max-w-none" 
+                dangerouslySetInnerHTML={{ __html: content.content }} 
+              />
               
               <div className="mt-8 flex justify-center">
                 <Button 
                   variant="outline" 
-                  onClick={() => window.history.back()}
+                  className="mx-2"
+                  onClick={() => navigate(-1)}
                 >
                   Retour
                 </Button>
               </div>
             </CardContent>
-          </Tabs>
-        </Card>
+          </Card>
+        )}
       </main>
       
       <Footer />
