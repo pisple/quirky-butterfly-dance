@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -42,8 +41,7 @@ const AcceptedTasks = () => {
       // Pour les seniors, récupérer toutes leurs tâches, y compris celles en attente d'approbation
       const allTasks = getAllTasks();
       const userTasks = allTasks.filter(task => 
-        task.requestedBy === user.id && 
-        (task.status === "waiting_approval" || task.status === "assigned")
+        task.requestedBy === user.id
       );
       setTasks(userTasks);
     } else {
