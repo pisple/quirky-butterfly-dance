@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { SiteContent, Notification, Task, DbTask, HelperPoints } from "@/types";
 import { adaptTaskFromDb } from "./taskAdapter";
@@ -47,11 +46,9 @@ export async function getHelperPoints(helperId: string): Promise<number> {
 
 export async function updateHelperPoints(helperId: string, pointsToAdd: number): Promise<number> {
   try {
-    // First, get current points
     const currentPoints = await getHelperPoints(helperId);
     const newPoints = currentPoints + pointsToAdd;
     
-    // Update points
     const { error } = await supabase
       .from("helper_points")
       .upsert({
@@ -181,7 +178,7 @@ export async function getTasksByUser(userId: string, type: "requestedBy" | "help
   }
 }
 
-export async function createTask(task: Task): Promise<Task | null> {
+export async function createTask(task: Omit<Task, "id">): Promise<Task | null> {
   try {
     const dbTask = {
       type: task.type,
@@ -216,7 +213,6 @@ export async function createTask(task: Task): Promise<Task | null> {
 
 export async function updateTask(taskId: string, updates: Partial<Task>): Promise<boolean> {
   try {
-    // Convert camelCase properties to snake_case for DB
     const dbUpdates: Record<string, any> = {};
     
     if (updates.helperAssigned !== undefined) dbUpdates.helper_assigned = updates.helperAssigned;

@@ -22,7 +22,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { TaskType, KeywordOption, City } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { v4 as uuidv4 } from 'uuid';
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
@@ -94,7 +93,6 @@ const ACCOMPANIMENT_KEYWORDS: KeywordOption[] = [
   { value: "lecture", label: "Lecture" },
 ];
 
-// Fonction pour associer un icône à chaque mot-clé
 const getKeywordIcon = (keyword: string) => {
   switch (keyword) {
     case "supermarché":

@@ -1,4 +1,3 @@
-
 import { v4 as uuidv4 } from 'uuid';
 import { Task } from '@/types';
 
@@ -28,7 +27,7 @@ export const getAvailableTasks = (): Task[] => {
   return allTasks.filter(task => task.status === "pending");
 };
 
-// Créer une nouvelle tâche
+// Update createLocalTask to match our interface
 export const createLocalTask = (task: Omit<Task, "id">): Task => {
   const allTasks = getAllTasks();
   
