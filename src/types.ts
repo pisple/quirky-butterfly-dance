@@ -25,3 +25,25 @@ export interface City {
   name: string;
   distance?: number;
 }
+
+export interface SiteContent {
+  id?: string;
+  key: string;
+  content: string;
+  last_updated?: string;
+}
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  message: string;
+  related_task_id?: string;
+  is_read: boolean;
+  created_at: string;
+}
+
+export interface HelperPoints {
+  helper_id: string;
+  points: number;
+  updated_at: string;
+}

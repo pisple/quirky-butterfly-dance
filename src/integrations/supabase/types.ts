@@ -35,6 +35,41 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_read: boolean | null
+          message: string
+          related_task_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          message: string
+          related_task_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          message?: string
+          related_task_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_related_task_id_fkey"
+            columns: ["related_task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           age: number | null
@@ -62,6 +97,27 @@ export type Database = {
           name?: string
           type?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      site_content: {
+        Row: {
+          content: string
+          id: string
+          key: string
+          last_updated: string | null
+        }
+        Insert: {
+          content: string
+          id?: string
+          key: string
+          last_updated?: string | null
+        }
+        Update: {
+          content?: string
+          id?: string
+          key?: string
+          last_updated?: string | null
         }
         Relationships: []
       }
@@ -118,6 +174,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      users: {
+        Row: {
+          age: number | null
+          created_at: string
+          email: string
+          id: string
+          name: string
+          password: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          age?: number | null
+          created_at?: string
+          email: string
+          id?: string
+          name: string
+          password: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          age?: number | null
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          password?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
     }
     Views: {

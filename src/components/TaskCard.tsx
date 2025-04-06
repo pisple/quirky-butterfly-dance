@@ -7,6 +7,7 @@ import { Task } from "@/types";
 import { Clock, ShoppingCart, ChefHat, Flower, Laptop, Users, MapPin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import MapDisplay from "./MapDisplay";
+import { supabase } from "@/integrations/supabase/client";
 
 interface TaskCardProps {
   task: Task;
@@ -18,7 +19,7 @@ const TaskCard = ({ task, userType, onTaskUpdate }: TaskCardProps) => {
   const { toast } = useToast();
   const [showMap, setShowMap] = useState(false);
   
-  const handleAccept = () => {
+  const handleAccept = async () => {
     if (onTaskUpdate) {
       onTaskUpdate(task.id, "assigned");
       
@@ -31,8 +32,18 @@ const TaskCard = ({ task, userType, onTaskUpdate }: TaskCardProps) => {
         description: `Vous avez accepté d'aider ${elderlyName} avec ${getTaskName()} à ${task.location}.`,
       });
       
+      try {
+        // Créer une notification pour le senior
+        await supabase.from("notifications").insert({
+          user_id: task.requestedBy,
+          message: `Un jeune aidant a accepté votre demande d'aide pour "${getTaskName()}" à ${task.location}.`,
+          related_task_id: task.id,
+        });
+      } catch (error) {
+        console.error("Erreur lors de l'envoi de la notification:", error);
+      }
+      
       // Store that a notification has been sent
-      // This could be expanded in a real app to send to the elderly as well
       const updatedTasks = JSON.parse(localStorage.getItem("tasks") || "[]");
       const taskIndex = updatedTasks.findIndex((t: Task) => t.id === task.id);
       if (taskIndex !== -1) {
@@ -53,25 +64,78 @@ const TaskCard = ({ task, userType, onTaskUpdate }: TaskCardProps) => {
     }
   };
   
-  const handleComplete = () => {
+  const handleComplete = async () => {
     if (onTaskUpdate) {
       onTaskUpdate(task.id, "completed");
       
       if (userType === "helper") {
-        const currentPoints = parseInt(localStorage.getItem("helperPoints") || "0");
-        // Award 50 points for completing a task
-        const newPoints = currentPoints + 50;
-        localStorage.setItem("helperPoints", newPoints.toString());
-        
-        toast({
-          title: "Tâche terminée",
-          description: `Merci pour votre aide ! Vous avez gagné 50 points. Vous avez maintenant ${newPoints} points.`,
-        });
+        try {
+          // Vérifier si l'utilisateur a déjà un enregistrement de points
+          const userId = localStorage.getItem("userId");
+          if (!userId) return;
+          
+          // Récupérer les points actuels depuis Supabase
+          const { data: existingPoints, error: fetchError } = await supabase
+            .from("helper_points")
+            .select("*")
+            .eq("helper_id", userId)
+            .maybeSingle();
+            
+          if (fetchError && fetchError.code !== "PGRST116") {
+            throw fetchError;
+          }
+          
+          const newPoints = existingPoints ? existingPoints.points + 50 : 50;
+          
+          // Mettre à jour ou insérer des points
+          if (existingPoints) {
+            await supabase
+              .from("helper_points")
+              .update({ points: newPoints })
+              .eq("helper_id", userId);
+          } else {
+            await supabase
+              .from("helper_points")
+              .insert({ helper_id: userId, points: newPoints });
+          }
+          
+          // Envoyer une notification au senior
+          await supabase.from("notifications").insert({
+            user_id: task.requestedBy,
+            message: `Votre demande d'aide pour "${getTaskName()}" à ${task.location} a été marquée comme terminée.`,
+            related_task_id: task.id,
+          });
+          
+          toast({
+            title: "Tâche terminée",
+            description: `Merci pour votre aide ! Vous avez gagné 50 points. Vous avez maintenant ${newPoints} points.`,
+          });
+        } catch (error) {
+          console.error("Erreur lors de la mise à jour des points:", error);
+          toast({
+            title: "Erreur",
+            description: "Une erreur est survenue lors de la mise à jour des points.",
+            variant: "destructive"
+          });
+        }
       } else {
-        toast({
-          title: "Tâche terminée",
-          description: "Merci d'avoir confirmé que la tâche est terminée !",
-        });
+        try {
+          // Envoyer une notification au jeune qui a aidé
+          if (task.helperAssigned) {
+            await supabase.from("notifications").insert({
+              user_id: task.helperAssigned,
+              message: `La personne que vous avez aidée a confirmé que la tâche "${getTaskName()}" à ${task.location} est terminée.`,
+              related_task_id: task.id,
+            });
+          }
+          
+          toast({
+            title: "Tâche terminée",
+            description: "Merci d'avoir confirmé que la tâche est terminée !",
+          });
+        } catch (error) {
+          console.error("Erreur lors de l'envoi de la notification:", error);
+        }
       }
     }
   };

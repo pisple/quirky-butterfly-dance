@@ -4,11 +4,12 @@ import { useLocation } from "react-router-dom";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import TaskList from "@/components/TaskList";
-import { Task, UserType } from "@/types";
+import { Task, UserType, HelperPoints } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const Dashboard = () => {
   const location = useLocation();
@@ -47,36 +48,59 @@ const Dashboard = () => {
       }
     };
     
-    // Load points for helpers
-    if (userType === "helper") {
-      const points = parseInt(localStorage.getItem("helperPoints") || "0");
-      setHelperPoints(points);
-      
-      // Get user location for proximity sorting
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            const coordinates = {
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
-            };
-            localStorage.setItem("userLocation", JSON.stringify(coordinates));
-          },
-          (error) => {
-            console.error("Error getting user location:", error);
-            // Use a default location for Belgium if geolocation fails
-            const defaultLocation = {
-              latitude: 50.8503, // Brussels latitude
-              longitude: 4.3517, // Brussels longitude
-            };
-            localStorage.setItem("userLocation", JSON.stringify(defaultLocation));
+    // Load points for helpers from Supabase
+    const loadHelperPoints = async () => {
+      if (userType === "helper") {
+        const userId = localStorage.getItem("userId");
+        if (userId) {
+          try {
+            const { data, error } = await supabase
+              .from("helper_points")
+              .select("*")
+              .eq("helper_id", userId)
+              .maybeSingle();
+              
+            if (error && error.code !== "PGRST116") {
+              throw error;
+            }
+            
+            if (data) {
+              setHelperPoints(data.points);
+            }
+          } catch (error) {
+            console.error("Erreur lors du chargement des points:", error);
           }
-        );
+        }
+        
+        // Get user location for proximity sorting
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              const coordinates = {
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+              };
+              localStorage.setItem("userLocation", JSON.stringify(coordinates));
+            },
+            (error) => {
+              console.error("Error getting user location:", error);
+              // Use a default location for Belgium if geolocation fails
+              const defaultLocation = {
+                latitude: 50.8503, // Brussels latitude
+                longitude: 4.3517, // Brussels longitude
+              };
+              localStorage.setItem("userLocation", JSON.stringify(defaultLocation));
+            }
+          );
+        }
       }
-    }
+    };
     
     // Load tasks initially
     loadTasks();
+    
+    // Load helper points
+    loadHelperPoints();
     
     // Set up event listener for storage changes (when tasks are created or modified)
     window.addEventListener('storage', loadTasks);
@@ -94,14 +118,36 @@ const Dashboard = () => {
       setTasks(JSON.parse(storedTasks));
     }
     
-    // Also update points when reloading
+    // Also update points when reloading if userType is helper
     if (userType === "helper") {
-      const points = parseInt(localStorage.getItem("helperPoints") || "0");
-      setHelperPoints(points);
+      const loadHelperPointsFromSupabase = async () => {
+        const userId = localStorage.getItem("userId");
+        if (userId) {
+          try {
+            const { data, error } = await supabase
+              .from("helper_points")
+              .select("*")
+              .eq("helper_id", userId)
+              .maybeSingle();
+              
+            if (error && error.code !== "PGRST116") {
+              throw error;
+            }
+            
+            if (data) {
+              setHelperPoints(data.points);
+            }
+          } catch (error) {
+            console.error("Erreur lors du chargement des points:", error);
+          }
+        }
+      };
+      
+      loadHelperPointsFromSupabase();
     }
   }, [userType]);
 
-  const handleTaskUpdate = (taskId: string, status: "pending" | "assigned" | "completed" | "cancelled") => {
+  const handleTaskUpdate = async (taskId: string, status: "pending" | "assigned" | "completed" | "cancelled") => {
     const updatedTasks = tasks.map(task => 
       task.id === taskId ? { ...task, status, helperAssigned: status === "assigned" ? localStorage.getItem("userId") || "" : task.helperAssigned } : task
     );
@@ -112,9 +158,40 @@ const Dashboard = () => {
     
     // Update helper points if task completed
     if (status === "completed" && userType === "helper") {
-      const newPoints = helperPoints + 50;
-      setHelperPoints(newPoints);
-      localStorage.setItem("helperPoints", newPoints.toString());
+      const userId = localStorage.getItem("userId");
+      if (userId) {
+        try {
+          // Récupérer les points actuels depuis Supabase
+          const { data, error: fetchError } = await supabase
+            .from("helper_points")
+            .select("*")
+            .eq("helper_id", userId)
+            .maybeSingle();
+            
+          if (fetchError && fetchError.code !== "PGRST116") {
+            throw fetchError;
+          }
+          
+          const currentPoints = data ? data.points : 0;
+          const newPoints = currentPoints + 50;
+          
+          // Mettre à jour ou insérer des points
+          if (data) {
+            await supabase
+              .from("helper_points")
+              .update({ points: newPoints })
+              .eq("helper_id", userId);
+          } else {
+            await supabase
+              .from("helper_points")
+              .insert({ helper_id: userId, points: newPoints });
+          }
+          
+          setHelperPoints(newPoints);
+        } catch (error) {
+          console.error("Erreur lors de la mise à jour des points:", error);
+        }
+      }
     }
   };
   

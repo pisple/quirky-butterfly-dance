@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { v4 as uuidv4 } from 'uuid';
+import { supabase } from "@/integrations/supabase/client";
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Email invalide" }),
@@ -32,23 +32,6 @@ const Login = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [userType, setUserType] = useState<UserType>("elderly");
-  const [existingUsers, setExistingUsers] = useState<{email: string, userId: string}[]>([]);
-
-  useEffect(() => {
-    // Charger les utilisateurs existants depuis le localStorage
-    const storedUsers = localStorage.getItem("users");
-    if (storedUsers) {
-      setExistingUsers(JSON.parse(storedUsers));
-    } else {
-      // Créer quelques utilisateurs par défaut si aucun n'existe
-      const defaultUsers = [
-        { email: "senior@example.com", userId: "senior1" },
-        { email: "helper@example.com", userId: "helper1" }
-      ];
-      localStorage.setItem("users", JSON.stringify(defaultUsers));
-      setExistingUsers(defaultUsers);
-    }
-  }, []);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -58,38 +41,60 @@ const Login = () => {
     },
   });
 
-  const onSubmit = (data: LoginFormValues) => {
+  const onSubmit = async (data: LoginFormValues) => {
     console.log("Login data:", data);
     
-    // Vérifier si l'email existe dans la liste des utilisateurs
-    const existingUser = existingUsers.find(user => user.email === data.email);
-    
-    if (!existingUser) {
+    try {
+      // Connexion via Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: data.email,
+        password: data.password,
+      });
+      
+      if (authError) {
+        throw authError;
+      }
+      
+      if (!authData.user) {
+        throw new Error("Identifiants invalides");
+      }
+      
+      // Récupérer les informations du profil utilisateur
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', authData.user.id)
+        .single();
+        
+      if (profileError) {
+        console.error("Erreur lors de la récupération du profil:", profileError);
+      }
+      
+      // Utiliser le type d'utilisateur du profil ou celui sélectionné dans le formulaire
+      const actualUserType = profileData?.type as UserType || userType;
+      
+      // Stocker les informations utilisateur dans localStorage pour compatibilité
+      localStorage.setItem("userType", actualUserType);
+      localStorage.setItem("userEmail", data.email);
+      localStorage.setItem("userId", authData.user.id);
+      localStorage.setItem("userName", profileData?.name || "");
+      localStorage.setItem("isLoggedIn", "true");
+      
       toast({
-        title: "Compte non trouvé",
-        description: "Aucun compte n'existe avec cette adresse email. Veuillez vous inscrire.",
+        title: "Connexion réussie",
+        description: "Bienvenue sur Gener-Action !",
+      });
+      
+      // Rediriger vers le tableau de bord
+      navigate("/dashboard", { state: { userType: actualUserType } });
+    } catch (error: any) {
+      console.error("Erreur de connexion:", error);
+      toast({
+        title: "Erreur de connexion",
+        description: error.message || "Identifiants invalides",
         variant: "destructive"
       });
-      return;
     }
-    
-    // Simuler une connexion réussie
-    toast({
-      title: "Connexion réussie",
-      description: "Bienvenue sur Gener-Action !",
-    });
-    
-    // Générer un ID utilisateur s'il n'existe pas déjà
-    const userId = existingUser.userId || uuidv4();
-    
-    // Stocker les informations utilisateur dans le localStorage
-    localStorage.setItem("userType", userType);
-    localStorage.setItem("userEmail", data.email);
-    localStorage.setItem("userId", userId);
-    localStorage.setItem("isLoggedIn", "true");
-    
-    // Rediriger vers le tableau de bord
-    navigate("/dashboard", { state: { userType } });
   };
   
   return (
@@ -182,7 +187,7 @@ const Login = () => {
                       <Button 
                         variant="link" 
                         className="p-0" 
-                        onClick={() => navigate("/")}
+                        onClick={() => navigate("/register")}
                       >
                         S'inscrire
                       </Button>
