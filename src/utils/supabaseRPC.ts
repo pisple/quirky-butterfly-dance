@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { SiteContent, Notification, Task, DbTask, HelperPoints } from "@/types";
 import { adaptTaskFromDb } from "./taskAdapter";
@@ -180,6 +181,7 @@ export async function getTasksByUser(userId: string, type: "requestedBy" | "help
 
 export async function createTask(task: Omit<Task, "id">): Promise<Task | null> {
   try {
+    // Creating a task object that matches the database schema
     const dbTask = {
       type: task.type,
       keywords: task.keywords,
@@ -188,7 +190,7 @@ export async function createTask(task: Omit<Task, "id">): Promise<Task | null> {
       requested_by_name: task.requestedByName || "",
       requested_date: task.requestedDate,
       status: task.status,
-      helper_assigned: task.helperAssigned
+      helper_assigned: task.helperAssigned || null
     };
     
     console.log("Creating task in Supabase:", dbTask);
