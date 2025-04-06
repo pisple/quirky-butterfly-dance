@@ -59,11 +59,12 @@ const AcceptedTasks = () => {
           );
         }
       } else {
-        // For elderly, show all their tasks with special emphasis on tasks waiting for approval
+        // For elderly, show all their tasks including those waiting for approval
+        console.log("Attempting to fetch tasks for elderly user:", user.id);
         const userTasks = await getTasksByUser(user.id, "requestedBy").catch(() => []);
         
         if (userTasks.length > 0) {
-          // For the elderly user, include pending tasks AND any tasks waiting for their approval
+          console.log("Tasks fetched from Supabase for elderly:", userTasks);
           loadedTasks = userTasks;
         }
       }
@@ -76,6 +77,7 @@ const AcceptedTasks = () => {
           // For seniors, get all their tasks including those waiting for approval
           const allTasks = getAllTasks();
           loadedTasks = allTasks.filter(task => task.requestedBy === user.id);
+          console.log("Loaded tasks from local storage for elderly:", loadedTasks);
         } else {
           // For helpers, get all tasks (including those created by seniors)
           const allTasks = getAllTasks();
@@ -91,8 +93,7 @@ const AcceptedTasks = () => {
         }
       }
       
-      // Add debugging log to see what tasks are loaded
-      console.log("Loaded tasks for user:", user.id, "userType:", userType, "tasks:", loadedTasks);
+      console.log("Final loaded tasks for user:", user.id, "userType:", userType, "tasks:", loadedTasks);
       
       setTasks(loadedTasks);
     } catch (error) {

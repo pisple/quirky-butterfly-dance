@@ -30,24 +30,24 @@ const TaskList = ({ tasks, userType, onTaskUpdate }: TaskListProps) => {
   // Filter tasks based on user type
   const userId = localStorage.getItem("userId");
   
-  // Pour les seniors: voir uniquement leurs propres tâches
-  // Pour les jeunes aidants: voir toutes les tâches créées par les seniors
+  // For elderly: Filter only tasks created by this user
+  // For helpers: Show all pending tasks created by seniors or assigned to this helper
   const relevantTasks = userType === "elderly" 
     ? tasks.filter(task => task.requestedBy === userId)
     : tasks.filter(task => task.status !== "cancelled" && task.status !== "completed");
-  
-  // Filtrer les tâches annulées ou complétées pour les seniors
-  const availableTasks = userType === "elderly"
-    ? relevantTasks.filter(task => task.status !== "cancelled" && task.status !== "completed")
-    : relevantTasks;
   
   // Add some debugging information
   console.log("TaskList rendering with:", {
     userType,
     totalTasks: tasks.length,
-    relevantTasks: relevantTasks.length,
-    availableTasks: availableTasks.length
+    relevantTasks: relevantTasks.length
   });
+  
+  // For elderly, don't hide cancelled/completed tasks yet (they can view their history)
+  // For helpers, filter out cancelled/completed tasks
+  const availableTasks = relevantTasks;
+  
+  console.log("Available tasks:", availableTasks);
   
   // Log tasks waiting for approval to debug
   const waitingApprovalTasks = availableTasks.filter(task => task.status === "waiting_approval");
@@ -117,36 +117,31 @@ const TaskList = ({ tasks, userType, onTaskUpdate }: TaskListProps) => {
     }
   };
   
-  // Appliquer le filtre (type de tâche) sur les tâches selon l'onglet actif
-  const filteredPendingTasks = filter 
-    ? pendingTasks.filter(task => task.type === filter) 
-    : pendingTasks;
-    
-  const filteredWaitingApprovalTasks = filter 
-    ? waitingApprovalTasks.filter(task => task.type === filter) 
-    : waitingApprovalTasks;
-    
-  const filteredAssignedTasks = filter 
-    ? assignedTasks.filter(task => task.type === filter) 
-    : assignedTasks;
-  
   // For elderly users, make sure to highlight waiting_approval tasks - these are tasks waiting for their confirmation
   let displayedTasks;
   
   if (userType === "elderly") {
-    // For seniors, show all their active tasks including waiting_approval with clear visibility
+    // Show ALL tasks for elderly users, with filtering by type if needed
+    const activeTasks = availableTasks.filter(task => 
+      task.status === "pending" || 
+      task.status === "waiting_approval" || 
+      task.status === "assigned"
+    );
+    
     displayedTasks = filter 
-      ? availableTasks.filter(task => task.type === filter)
-      : availableTasks;
+      ? activeTasks.filter(task => task.type === filter)
+      : activeTasks;
+      
+    console.log("Displaying for elderly user:", displayedTasks);
   } else {
-    // Pour les helpers, respecter le système d'onglets et appliquer le tri par proximité
+    // For helpers, respect the system of tabs and apply proximity sorting
     let tasksBeforeSorting;
     if (activeTab === "available") {
-      tasksBeforeSorting = filteredPendingTasks;
+      tasksBeforeSorting = pendingTasks;
     } else if (activeTab === "waiting") {
-      tasksBeforeSorting = filteredWaitingApprovalTasks;
+      tasksBeforeSorting = waitingApprovalTasks;
     } else {
-      tasksBeforeSorting = filteredAssignedTasks;
+      tasksBeforeSorting = assignedTasks;
     }
     displayedTasks = sortByProximity ? sortTasksByProximity(tasksBeforeSorting) : tasksBeforeSorting;
   }
