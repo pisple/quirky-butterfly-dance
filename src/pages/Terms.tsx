@@ -1,87 +1,82 @@
 
 import { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
-import { SiteContent } from "@/types";
+import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getSiteContent } from "@/utils/supabaseRPC";
+
+interface ContentData {
+  title: string;
+  content: string;
+}
 
 const Terms = () => {
-  const { contentType } = useParams();
-  const navigate = useNavigate();
-  const { toast } = useToast();
-  const [content, setContent] = useState<SiteContent>({ id: "", title: "", content: "", updated_at: "" });
-  const [loading, setLoading] = useState(true);
+  const { contentType = "terms" } = useParams();
+  const [content, setContent] = useState<ContentData>({ title: "", content: "" });
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
     const fetchContent = async () => {
-      setLoading(true);
-      
-      const contentId = contentType === "privacy" 
-        ? "privacy" 
-        : contentType === "about" 
-          ? "about" 
-          : "terms";
-      
       try {
-        // On utilise une fonction RPC pour accéder à site_content
-        const { data, error } = await supabase
-          .rpc('get_site_content', { content_id: contentId });
-          
-        if (error) {
-          throw error;
-        }
+        setIsLoading(true);
+        const data = await getSiteContent(contentType);
         
         if (data) {
-          setContent(data as SiteContent);
+          setContent({ 
+            title: data.title, 
+            content: data.content 
+          });
         }
       } catch (error) {
-        console.error("Erreur lors du chargement du contenu:", error);
-        toast({
-          title: "Erreur",
-          description: "Impossible de charger le contenu demandé.",
-          variant: "destructive",
-        });
+        console.error(`Erreur lors du chargement du contenu ${contentType}:`, error);
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
     };
-    
+
     fetchContent();
-  }, [contentType, toast]);
-  
+  }, [contentType]);
+
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
       
       <main className="flex-grow container mx-auto px-4 py-8">
-        {loading ? (
-          <div className="flex justify-center items-center h-64">
-            <p className="text-lg">Chargement...</p>
-          </div>
-        ) : (
-          <Card className="w-full max-w-4xl mx-auto">
+        <Card>
+          <Tabs defaultValue={contentType} className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="terms" asChild>
+                <Link to="/terms/terms">Conditions d'utilisation</Link>
+              </TabsTrigger>
+              <TabsTrigger value="privacy" asChild>
+                <Link to="/terms/privacy">Politique de confidentialité</Link>
+              </TabsTrigger>
+            </TabsList>
+            
             <CardContent className="pt-6">
-              <div 
-                className="prose max-w-none" 
-                dangerouslySetInnerHTML={{ __html: content.content }} 
-              />
+              {isLoading ? (
+                <p className="text-center py-8">Chargement...</p>
+              ) : (
+                <>
+                  <h1 className="text-2xl font-bold mb-6">{content.title}</h1>
+                  <div className="prose max-w-none" dangerouslySetInnerHTML={{ __html: content.content }} />
+                </>
+              )}
               
               <div className="mt-8 flex justify-center">
                 <Button 
                   variant="outline" 
-                  className="mx-2"
-                  onClick={() => navigate(-1)}
+                  onClick={() => window.history.back()}
                 >
                   Retour
                 </Button>
               </div>
             </CardContent>
-          </Card>
-        )}
+          </Tabs>
+        </Card>
       </main>
       
       <Footer />

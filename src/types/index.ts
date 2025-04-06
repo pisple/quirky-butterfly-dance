@@ -34,16 +34,16 @@ export interface Task {
   type: TaskType;
   keywords: string[];
   location: string;
-  requested_by: string;
-  requested_date: string;
-  status: "pending" | "assigned" | "completed" | "cancelled";
-  helper_assigned?: string;
-  
-  // Propriétés pour compatibilité avec l'ancien code
   requestedBy: string;
   requestedByName: string;
   requestedDate: string;
+  status: "pending" | "assigned" | "completed" | "cancelled";
   helperAssigned?: string;
+  
+  // For database compatibility (snake_case)
+  requested_by?: string;
+  requested_date?: string;
+  helper_assigned?: string;
 }
 
 export interface Notification {
@@ -61,4 +61,13 @@ export interface SiteContent {
   title: string;
   content: string;
   updated_at: string;
+}
+
+export interface BelgianCity {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  population: number;
+  province: string;
 }
