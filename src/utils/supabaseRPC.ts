@@ -177,6 +177,8 @@ export async function createTask(task: Task): Promise<Task | null> {
   try {
     const dbTask = adaptTaskToDb(task);
     
+    console.log("Creating task:", dbTask);
+    
     const { data, error } = await supabase
       .from("tasks")
       .insert(dbTask)

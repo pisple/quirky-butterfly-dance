@@ -314,7 +314,7 @@ const TaskRequestForm = () => {
       
       const newTask = {
         id: taskId,
-        type: values.type,
+        type: values.type as TaskType,
         keywords: values.keywords,
         location: values.location,
         requestedBy: user.id,
@@ -322,6 +322,8 @@ const TaskRequestForm = () => {
         requestedDate: values.date,
         status: "pending" as const,
       };
+      
+      console.log("Submitting task:", newTask);
       
       const createdTask = await createTask(newTask);
       

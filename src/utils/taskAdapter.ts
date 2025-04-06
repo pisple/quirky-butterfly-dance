@@ -16,7 +16,7 @@ export const adaptTaskFromDb = (dbTask: DbTask): Task => {
 };
 
 // Convert from front-end task to database format
-export const adaptTaskToDb = (task: Task): DbTask => {
+export const adaptTaskToDb = (task: Task): Partial<DbTask> => {
   return {
     id: task.id,
     type: task.type,
